@@ -19,6 +19,8 @@
 
 
 ## 🔥 NEWS
+**`2025/09/27`**: The SwiftSketch code is released!
+
 **`2025/04/29`**: The ControlSketch code is released!
 
 **`2025/02/12`**: The ControlSketch dataset is released!
@@ -122,28 +124,161 @@ Optional arguments:
 <b>For example:</b>
 <br>
 
-Generating 10 samples of a cat and save them to a specified directory::
+Generating 10 samples of a cat and save them to a specified directory:
 ```bash
 python make_sdxl_data.py --obj "cat" --output_dir "path/to/output/dir" --num_of_samples 10
 ```
 
 ## SwiftSketch
+```bash
+cd SwiftSketch
 ```
-Comming soon
+
+###  Download the pretrained models
+
+Download the following models, then unzip and place them in `./save/`. 
+
+[sketch-diffusion](https://drive.google.com/uc?export=download&id=19FryO99dCmz-Dw1jzeZITUI0uuksiOA-)
+
+[refinement-network](https://drive.google.com/uc?export=download&id=1OrLzwaJXZ4SlDw3hqn71Yg1L01ytLv2x)
+
+###  SwiftSketch Generation
+
+To sketch your own images using SwiftSketch, from SwiftSketch run:
+```bash
+python -m generate \
+  --model_path "<path/to/sketch-diffusion_model.pt>" \
+  --refine_model_path "<path/to/refinement-network.pt>" \
+  --input_data "<path/to/input>" \
+  --output_dir "<path/to/output>"
+```
+The input_data can be one of the following:
+1. A single image file
+2. A folder of images
+3. An .npy/.npz dictionary containing the key image
+4. A folder of dictionaries
+
+- The final sketch will be saved in the specified output_dir folder. If no directory is provided, it will be saved in the output_sketches folder inside the input data folder.   
+- If the input is a dictionary, the sketch will also be added to the dictionary.
+
+Example:  
+sketch all images in the `examples/` folder:
+
+```bash
+python -m generate \
+    --model_path "./save/sketch-diffusion/model000450000.pt" \
+    --refine_model_path "./save/refinement-network/model000430000.pt" \
+    --input_data "./examples" \
+    --output_dir "./output_sketches"
+```
+
+Some example outputs can be found in the output_sketches folder.
+
+###  SwiftSketch Training
+
+<b>Image Features:</b>
+
+To prepare the data for training, you first need to create image features and save them into the input dictionaries by running from the SwiftSketch directory:
+```bash
+python -m utils.get_features --dir_name <path/to/data>
+```
+- dir_name is the path to a directory containing .npy/.npz dictionaries.
+- The image features key will be added to each dictionary.
+
+<b>Sketch Diffusion Model:</b>
+
+To train the sketch diffusion model, from SwiftSketch run:
+```bash
+python -m train.train_SwiftSketch --save_dir <path/to/save_dir> --train_data_dir <path/to/training_data> 
+```
+- The model checkpoints and cached data will be saved in the specified save_dir folder.
+- The train_data_dir can be one or more paths to data folders
+
+Optional arguments include:
+* ```--num_steps``` Number of training steps
+* ```--batch_size``` Batch size used during training
+* ```--save_interval``` Save checkpoints every N steps
+* ```--data_name``` Filename for the cached data
+* ```--cat_data_size``` Maximum number of files to use per category (input data path)
+* ```--target_key_name``` Name of the target SVG key (the ControlSketch sketch) in the input dictionaries. Default: "svg_32s", consistent with ControlSketch generation.
+
+Example:   
+The command below trains a model for 50,000 steps on 1,000 samples each of the cat and dog categories from the controlsketch training set. Both the model checkpoints and the cached data will be saved in the save/cat_dog_model folder. The cached data file will be named cat_dog_data:    
+```bash
+python -m train.train_SwiftSketch \
+    --save_dir "./save/cat_dog_model" \
+    --num_steps 50000 \
+    --data_name "cat_dog_data" \
+    --cat_data_size 1000 \
+    --batch_size 16 \ 
+    --train_data_dir "./controlsketch_data/train/cat" "./controlsketch_data/train/dog"
+```
+
+<b>Refinement Network:</b>
+
+To prepare the data for training the refinement network, you first need to generate diffusion sketches and save them into the input dictionaries by running:
+```bash
+python -m generate \
+  --model_path "<path/to/sketch-diffusion-model.pt>" \
+  --use_refine 0 \
+  --save_diffusion_sketch_in_dict 1 \
+  --input_data "<path/to/input>"
+```
+- The generated diffusion SVGs will be added to the input data dictionaries.
+
+
+To train the refinement network , from SwiftSketch run:
+```bash
+python -m refine_model.train_refine.train_refine_model \
+  --save_dir "<path/to/save_dir>" \
+  --resume_checkpoint "<path/to/pretrained_sketch_diffusion_model.pt>" \
+  --train_data_dir "<path/to/training_data>"
+```
+
+- The model checkpoints and cached data will be saved in the specified save_dir folder.
+- The train_data_dir can be one or more paths to data folders
+- The --resume_checkpoint argument specifies the path to a pretrained Sketch Diffusion model checkpoint file (e.g., path/to/model###.pt). Training will resume from this checkpoint.    
+
+Optional arguments include:
+* ```--num_steps``` Number of training steps
+* ```--batch_size``` Batch size used during training
+* ```--save_interval``` Save checkpoints every N steps
+* ```--data_name``` Filename for the cached data
+* ```--cat_data_size``` Maximum number of files to use per category (input data path)
+* ```--target_key_name``` Name of the target SVG key (the ControlSketch sketch) in the input dictionaries. Default: "svg_32s", consistent with ControlSketch generation.
+* ```--diffusion_key_name```Name of the diffusion SVG key (the output of the Sketch Diffusion Model) in the input dictionaries. Default: "svg_diffusion", consistent with SwiftSketch generation when saving the intermediate output- the diffusion SVG.
+
+Example:    
+The command below trains the refinement model for 10,000 steps on 1,000 samples each of the cat and dog categories from the controlsketch training set. The model is initialized from the checkpoint saved in ./save/sketch-diffusion/model000450000.pt. Both the model checkpoints and the cached data will be saved in the save_refine/cat_dog_model folder. The cached data file will be named cat_dog_data:   
+```bash
+python -m refine_model.train_refine.train_refine_model \
+    --save_dir "./save/cat_dog_refine_model" \
+    --resume_checkpoint "./save/sketch-diffusion/model000450000.pt" \
+    --num_steps 10000 \
+    --data_name "cat_dog_data" \
+    --cat_data_size 1000 \
+    --batch_size 16 \
+    --train_data_dir "./controlsketch_data/train/cat" "./controlsketch_data/train/dog"
 ```
 
 ## Citation
 If you make use of our work, please cite our paper:
 
 ```
-@misc{arar2025swiftsketchdiffusionmodelimagetovector,
-      title={SwiftSketch: A Diffusion Model for Image-to-Vector Sketch Generation}, 
-      author={Ellie Arar and Yarden Frenkel and Daniel Cohen-Or and Ariel Shamir and Yael Vinker},
-      year={2025},
-      eprint={2502.08642},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2502.08642}, 
+@inproceedings{10.1145/3721238.3730612,
+author = {Arar, Ellie and Frenkel, Yarden and Cohen-Or, Daniel and Shamir, Ariel and Vinker, Yael},
+title = {SwiftSketch: A Diffusion Model for Image-to-Vector Sketch Generation},
+year = {2025},
+isbn = {9798400715402},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3721238.3730612},
+doi = {10.1145/3721238.3730612},
+booktitle = {Proceedings of the Special Interest Group on Computer Graphics and Interactive Techniques Conference Conference Papers},
+articleno = {82},
+numpages = {12},
+keywords = {Sketch Synthesis, Image-to-Vector Generation, Image-based Rendering, Vector Graphics, Diffusion Models, Stroke-based Representation},
+series = {SIGGRAPH Conference Papers '25}
 }
 ```
 
