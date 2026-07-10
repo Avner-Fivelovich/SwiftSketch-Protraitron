@@ -14,13 +14,20 @@
 # 1. Activate the conda environment
 source ~/.bashrc
 
-# Set HF cache directory to NetApp to avoid home directory quota errors
+# Fallback for environment activation if .bashrc sourcing fails
+if ! command -v conda &> /dev/null; then
+    source /vol/joberant_nobck/data/NLP_368307701_2526a/$USER/anaconda3/bin/activate
+fi
+
+# Set HF cache directory and PyTorch CUDA allocator settings
 export HF_HOME="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/huggingface_cache"
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Activate the conda environment for swiftsketch
 conda activate swiftsketch_env
 
-# 2. Navigate to the project directory from which sbatch was executed
+# 2. Ensure log directories exist and navigate to the project directory from which sbatch was executed
+mkdir -p outputs/logs
 cd "${SLURM_SUBMIT_DIR}"
 
 # 3. Execute the 16-stroke step comparison script

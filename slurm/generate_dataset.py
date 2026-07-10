@@ -70,6 +70,7 @@ def main():
 
     durations = []
     processed_count = 0
+    consecutive_failures = 0
     total_start_time = time.time()
 
     for idx, src_file in enumerate(npz_files):
@@ -119,7 +120,17 @@ def main():
         result = subprocess.run(cmd, env=env)
         if result.returncode != 0:
             print(f"  Warning: Optimization failed for {src_file}. Error code: {result.returncode}", flush=True)
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
+                print("  FATAL ERROR: 3 consecutive failures encountered. Aborting dataset generation to save compute resources.", flush=True)
+                # Cleanup temp logs directory before exiting
+                try:
+                    shutil.rmtree(temp_sketch_logs)
+                except:
+                    pass
+                sys.exit(1)
         else:
+            consecutive_failures = 0
             duration = time.time() - img_start_time
             durations.append(duration)
             processed_count += 1

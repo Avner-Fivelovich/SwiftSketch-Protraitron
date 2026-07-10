@@ -110,6 +110,13 @@ We have prepared two Slurm batch scripts for running the step comparison experim
 * `run_step_comparison.slurm` (runs 16-stroke optimization)
 * `run_step_comparison_64.slurm` (runs 64-stroke optimization)
 
+> [!IMPORTANT]
+> **Create the log directories before submitting**:
+> Slurm requires the destination paths for stdout/stderr logs to exist prior to job launch. Create the directories from the repository root:
+> ```bash
+> mkdir -p outputs/logs
+> ```
+
 To submit either job, run:
 ```bash
 # Submit the 16-stroke comparison job
