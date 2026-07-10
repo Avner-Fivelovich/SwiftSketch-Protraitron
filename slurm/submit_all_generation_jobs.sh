@@ -2,7 +2,14 @@
 
 # Configuration: Where to look for slurm files
 SEARCH_DIR="./slurm/jobs"
-STROKE_COUNTS=(48 64 96 128)
+
+# If a stroke count is specified as an argument, use only that one. Otherwise, default to all.
+if [ -n "$1" ]; then
+    STROKE_COUNTS=("$1")
+    echo "Targeting only stroke count: $1"
+else
+    STROKE_COUNTS=(48 64 96 128)
+fi
 
 # Check if the directory exists
 if [ ! -d "$SEARCH_DIR" ]; then
