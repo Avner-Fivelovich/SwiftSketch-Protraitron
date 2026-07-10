@@ -80,6 +80,18 @@ def main():
         # Determine relative path to maintain folder structure
         rel_path = os.path.relpath(src_file, args.input_dir)
         dest_file = os.path.join(args.output_dir, rel_path)
+        
+        # Check if the file is already fully optimized from a previous run
+        if os.path.exists(dest_file):
+            try:
+                with np.load(dest_file, allow_pickle=True) as loader:
+                    if f"svg_{args.num_strokes}s" in loader:
+                        print(f"  Skipping {os.path.basename(dest_file)} - already optimized for {args.num_strokes} strokes.", flush=True)
+                        processed_count += 1
+                        continue
+            except Exception as e:
+                print(f"  Warning loading existing file {dest_file}: {e}. Re-optimizing.", flush=True)
+                
         os.makedirs(os.path.dirname(dest_file), exist_ok=True)
 
         # Copy the original file to destination
