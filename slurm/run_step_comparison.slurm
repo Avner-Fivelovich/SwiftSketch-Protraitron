@@ -2,7 +2,7 @@
 #SBATCH --job-name=ss_comp_16
 #SBATCH --output=outputs/logs/ss_comp_16_%j.out
 #SBATCH --error=outputs/logs/ss_comp_16_%j.err
-#SBATCH --partition=killable
+#SBATCH --partition=studentkillable
 #SBATCH --account=gpu-students
 #SBATCH --time=1440
 #SBATCH --nodes=1

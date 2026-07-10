@@ -2,7 +2,7 @@
 #SBATCH --job-name=ss_gen_dataset
 #SBATCH --output=outputs/logs/ss_gen_%A_%a.out
 #SBATCH --error=outputs/logs/ss_gen_%A_%a.err
-#SBATCH --partition=killable
+#SBATCH --partition=studentkillable
 #SBATCH --account=gpu-students
 #SBATCH --time=1440
 #SBATCH --nodes=1
