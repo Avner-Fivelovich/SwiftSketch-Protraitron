@@ -1,4 +1,5 @@
 # Ignore large dataset directories and archives
+data/
 ControlSketch/data/train/
 ControlSketch/data/test/
 ControlSketch/data/validation/
