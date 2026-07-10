@@ -58,6 +58,26 @@ def merge_svgs(svg_path1, svg_path2, output_svg_path):
     tree1.write(output_svg_path)
     print(f"Combined SVG written to: {output_svg_path}")
 
+def pad_to_square_pil(img_path, output_path, size=512):
+    print(f"Padding image {img_path} to square {size}x{size}...")
+    img = Image.open(img_path).convert("RGB")
+    w, h = img.size
+    max_dim = max(w, h)
+    
+    # Create a white square background
+    square_img = Image.new("RGB", (max_dim, max_dim), "WHITE")
+    
+    # Paste centered
+    offset_x = (max_dim - w) // 2
+    offset_y = (max_dim - h) // 2
+    square_img.paste(img, (offset_x, offset_y))
+    
+    # Resize
+    resample_filter = Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.LANCZOS
+    square_img = square_img.resize((size, size), resample_filter)
+    square_img.save(output_path)
+    print(f"Padded square image saved to: {output_path}")
+
 def main():
     parser = argparse.ArgumentParser(description="Residual Sketching Subprocess Orchestrator")
     parser.add_argument("--target", type=str, required=True, help="Path to target image")
@@ -66,12 +86,20 @@ def main():
     parser.add_argument("--output_dir", type=str, required=True, help="Final output directory")
     parser.add_argument("--num_iter", type=int, default=1000, help="Number of steps per pass (default 1000)")
     parser.add_argument("--use_cpu", type=int, default=0, help="Enforce CPU rendering (default 0)")
+    parser.add_argument("--pad_to_square", action="store_true", help="Pad input image with white pixels to make it square first")
     
     # Allow passing any additional unknown args directly to object_sketching
     args, unknown_args = parser.parse_known_args()
     
     # Setup directories
     os.makedirs(args.output_dir, exist_ok=True)
+    
+    # Run padding if requested
+    if args.pad_to_square:
+        padded_target = os.path.join(args.output_dir, "padded_input.png")
+        pad_to_square_pil(args.target, padded_target)
+        args.target = padded_target
+        
     temp_dir_1 = os.path.join(args.output_dir, "pass1_temp")
     temp_dir_2 = os.path.join(args.output_dir, "pass2_temp")
     os.makedirs(temp_dir_1, exist_ok=True)
