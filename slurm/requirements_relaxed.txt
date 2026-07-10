@@ -63,7 +63,7 @@ fiftyone
 fiftyone-brain
 fiftyone_db
 filelock
-flash-attn
+# flash-attn
 Flask
 fonttools
 fqdn
