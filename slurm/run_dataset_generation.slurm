@@ -2,9 +2,8 @@
 #SBATCH --job-name=ss_gen_dataset
 #SBATCH --output=outputs/logs/ss_gen_%A_%a.out
 #SBATCH --error=outputs/logs/ss_gen_%A_%a.err
-#SBATCH --partition=studentkillable
+#SBATCH --partition=killable
 #SBATCH --account=gpu-students
-#SBATCH --constraint="RTX3090|RTX2080Ti|A5000|A6000|L40S"
 #SBATCH --time=1440
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

@@ -2,9 +2,8 @@
 #SBATCH --job-name=ss_comp_16
 #SBATCH --output=outputs/logs/ss_comp_16_%j.out
 #SBATCH --error=outputs/logs/ss_comp_16_%j.err
-#SBATCH --partition=studentkillable
+#SBATCH --partition=killable
 #SBATCH --account=gpu-students
-#SBATCH --constraint="RTX3090|RTX2080Ti|A5000|A6000|L40S"
 #SBATCH --time=1440
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
