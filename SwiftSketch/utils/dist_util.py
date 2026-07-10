@@ -34,6 +34,9 @@ def dev():
     if th.cuda.is_available() and used_device>=0:
         # print("running with GPU")
         return th.device(f"cuda:{used_device}")       
+    elif th.backends.mps.is_available() and used_device>=0:
+        # print("running with Apple Silicon GPU (MPS)")
+        return th.device("mps")
     print("running with CPU")
     return th.device("cpu")
 

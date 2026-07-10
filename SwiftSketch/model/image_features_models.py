@@ -47,6 +47,8 @@ class CLIPMidlleFeutures(nn.Module):
         super().__init__()
         self.device = device
         self.clip_model, clip_preprocess = clip.load("RN101", device=device, jit=False)
+        if device.type == "mps":
+            self.clip_model = self.clip_model.float()
         # Freeze the CLIP model parameters
         for param in self.clip_model.parameters():
             param.requires_grad = False

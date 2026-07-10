@@ -122,6 +122,8 @@ def add_sketch_options(parser):
     group = parser.add_argument_group('sketch')
     group.add_argument("--num_paths", type=int,
                         default=32, help="number of strokes")
+    group.add_argument("--num_strokes", type=int,
+                        default=None, help="alias/override for number of strokes")
     group.add_argument("--width", type=float,
                         default=2.5, help="stroke width")
     group.add_argument("--canvas_width", type=int, default=224,

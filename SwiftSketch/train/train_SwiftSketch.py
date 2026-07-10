@@ -15,6 +15,24 @@ from utils.get_data import create_data_set
 
 def main():
     args = train_args()
+
+    # Handle num_strokes CLI parameterization and dataset routing
+    if args.num_strokes is not None:
+        args.num_paths = args.num_strokes
+        args.target_key_name = f"svg_{args.num_strokes}s"
+        # Auto-route to the correct dataset folder
+        args.train_data_dir = [f"data/controlsketch_{args.num_strokes}/train"]
+        # Update data_name to avoid cache collision
+        args.data_name = f"train_data_{args.num_strokes}s"
+    else:
+        args.num_strokes = args.num_paths
+
+    # Explicitly enforce CPU execution for the differentiable rasterizer (pydiffvg)
+    import pydiffvg
+    import torch
+    pydiffvg.set_use_gpu(False)
+    pydiffvg.set_device(torch.device("cpu"))
+
     fixseed(args.seed)
 
     wandb_name= get_wandb_name(args)

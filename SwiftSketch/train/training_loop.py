@@ -9,6 +9,10 @@ import wandb
 import re
 from typing import Optional
 from os.path import join as pjoin
+import time
+import logging
+import traceback
+import psutil
 
 from diffusion.resample import create_named_schedule_sampler
 from diffusion import logger
@@ -42,6 +46,19 @@ class TrainLoop:
    
 
         self.sync_cuda = torch.cuda.is_available()
+
+        # Setup telemetry logging
+        self.telemetry_logger = logging.getLogger("SwiftSketchTelemetry")
+        self.telemetry_logger.setLevel(logging.INFO)
+        if not self.telemetry_logger.handlers:
+            fh = logging.FileHandler("swift_sketch_training.log", mode="a")
+            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            fh.setFormatter(formatter)
+            self.telemetry_logger.addHandler(fh)
+            
+            ch = logging.StreamHandler()
+            ch.setFormatter(formatter)
+            self.telemetry_logger.addHandler(ch)
 
         self._load_and_sync_parameters()
         self.mp_trainer = MixedPrecisionTrainer(
@@ -102,7 +119,8 @@ class TrainLoop:
 
     def run_loop(self):
         for epoch in range(self.num_epochs):
-            print(f'Starting epoch {epoch}', flush=True)
+            self.telemetry_logger.info(f"Starting epoch {epoch}")
+            epoch_start_time = time.time()
             for batch in tqdm(self.data):
                 if not (not self.lr_anneal_steps or self.step + self.resume_step < self.lr_anneal_steps):
                     break
@@ -133,6 +151,15 @@ class TrainLoop:
              
                 self.step += 1
 
+            # End of epoch resource monitoring
+            epoch_duration = time.time() - epoch_start_time
+            process = psutil.Process(os.getpid())
+            ram_usage_gb = process.memory_info().rss / (1024 ** 3)
+            self.telemetry_logger.info(
+                f"Epoch {epoch} completed. Duration: {epoch_duration:.2f} seconds. "
+                f"Host RAM: {ram_usage_gb:.3f} GB."
+            )
+
             if not (not self.lr_anneal_steps or self.step + self.resume_step < self.lr_anneal_steps):
                 break
         # Save the last checkpoint if it wasn't already saved.
@@ -140,10 +167,17 @@ class TrainLoop:
             self.save()
 
     def run_step(self, target_rendered_images,target_control_points, image_features, step, resume_step):
-        self.forward_backward( target_rendered_images,target_control_points, image_features, step, resume_step)
-        self.mp_trainer.optimize(self.opt)
-        self._anneal_lr()
-        self.log_step()
+        try:
+            self.forward_backward( target_rendered_images,target_control_points, image_features, step, resume_step)
+            self.mp_trainer.optimize(self.opt)
+            self._anneal_lr()
+            self.log_step()
+        except Exception as e:
+            tb = traceback.format_exc()
+            self.telemetry_logger.error(
+                f"Fatal exception during training step {step + resume_step}:\n{tb}"
+            )
+            raise e
 
        
         
@@ -152,6 +186,14 @@ class TrainLoop:
         self.mp_trainer.zero_grad()
         t, weights = self.schedule_sampler.sample(target_rendered_images.shape[0], dist_util.dev())
   
+        # Data validation: Check input tensor shape
+        expected_strokes = getattr(self.args, 'num_paths', 32)
+        if target_control_points.shape[1] != expected_strokes:
+            self.telemetry_logger.warning(
+                f"Input tensor shape mismatch! Expected {expected_strokes} strokes, "
+                f"got target_control_points shape: {list(target_control_points.shape)}"
+            )
+
         compute_losses = functools.partial(
             self.diffusion.training_losses,
             self.model,
@@ -167,6 +209,13 @@ class TrainLoop:
 
         losses = compute_losses()
         
+        # Data validation: Check loss values for NaN or Inf
+        for k, v in losses.items():
+            if torch.isnan(v).any() or torch.isinf(v).any():
+                self.telemetry_logger.warning(
+                    f"Warning: Loss function yielded invalid values ({k}: {v.item()}) at step {step + resume_step}."
+                )
+
         if isinstance(self.schedule_sampler, LossAwareSampler):
             self.schedule_sampler.update_with_local_losses(
                 t, losses["loss"].detach()

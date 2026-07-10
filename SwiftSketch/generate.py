@@ -57,7 +57,11 @@ def main():
         wandb.init(project=args.wandb_project_name, entity=args.wandb_user,
                     config=args, name=wandb_name, id=wandb.util.generate_id())
 
-    mask_model = AutoModelForImageSegmentation.from_pretrained("briaai/RMBG-1.4",trust_remote_code=True).to(args.device)
+    device = dist_util.dev()
+    mask_model = AutoModelForImageSegmentation.from_pretrained("briaai/RMBG-1.4",trust_remote_code=True)
+    if device.type == "mps":
+        mask_model = mask_model.float()
+    mask_model = mask_model.to(device)
 
     print("Creating model and diffusion...")
     model, diffusion = create_model_and_diffusion(args)
@@ -84,7 +88,7 @@ def main():
         refine_model.eval()  
 
 
-    features_model = models.CLIPMidlleFeutures(args.device, 3).to(args.device) #image features layer 4 
+    features_model = models.CLIPMidlleFeutures(device, 3).to(device) #image features layer 4 
 
 
     # Process the files in batches
@@ -120,17 +124,17 @@ def main():
                     try:
                         read_dictionary= sketch_utils.load_entry(f"{data_dir}/{f_}", [], "CLIPMiddle_layer4_features")
                         if "CLIPMiddle_layer4_features" in read_dictionary.keys():
-                            image_features=read_dictionary["CLIPMiddle_layer4_features"].to(args.device)
+                            image_features=read_dictionary["CLIPMiddle_layer4_features"].to(device)
                         else:
                             input_image = read_dictionary["image"]
                             if "mask" in read_dictionary.keys():
                                 mask = read_dictionary["mask"]
                             else:
-                                mask= sketch_utils.get_mask(input_image, args.device, mask_model)
+                                mask= sketch_utils.get_mask(input_image, device, mask_model)
                             input_image= sketch_utils.create_masked_image(input_image, mask)
                             if args.fix_scale:
                                 input_image=sketch_utils.fix_image_scale(input_image)    
-                            image_features = features_model(input_image).to(args.device)
+                            image_features = features_model(input_image).to(device)
                         image_features_lst.append(image_features)
                     except Exception as e:
                         print(f"Error loading or processing file {f_}: {e}")
@@ -146,11 +150,11 @@ def main():
                         input_image = Image.open(image_path)
                         print(f"Loaded image: {image_path}")
                         input_image = input_image.convert("RGB")
-                        mask= sketch_utils.get_mask(input_image, args.device, mask_model)
+                        mask= sketch_utils.get_mask(input_image, device, mask_model)
                         input_image= sketch_utils.create_masked_image(input_image, mask)
                         if args.fix_scale:
                             input_image=sketch_utils.fix_image_scale(input_image)    
-                        image_features = features_model(input_image).to(args.device)
+                        image_features = features_model(input_image).to(device)
                         image_features_lst.append(image_features)
                     except Exception as e:
                         print(f"Error loading or processing image {f_}: {e}")
@@ -165,7 +169,7 @@ def main():
         assert len(images_files) ==len(image_features_lst), "Error loading or processing the data."
 
         image_features= torch.stack(image_features_lst)
-        image_features= image_features.to(args.device)
+        image_features= image_features.to(device)
         final_batch_size = len(image_features)  
             
         # add CFG scale to batch

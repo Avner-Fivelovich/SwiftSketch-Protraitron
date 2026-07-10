@@ -66,7 +66,7 @@ class Painter(torch.nn.Module):
         self.optimize_flag = [True for i in range(len(self.shapes))]
 
         img = self.render_warp() 
-        img = img[:, :, 3:4] * img[:, :, :3] + torch.ones(img.shape[0], img.shape[1], 3, device=self.device) * (
+        img = img[:, :, 3:4] * img[:, :, :3] + torch.ones(img.shape[0], img.shape[1], 3, device=img.device) * (
                 1 - img[:, :, 3:4])
         img = img[:, :, :3]
         img = img.unsqueeze(0)
@@ -77,7 +77,7 @@ class Painter(torch.nn.Module):
     def get_image(self):
         img = self.render_warp()
         opacity = img[:, :, 3:4]
-        img = opacity * img[:, :, :3] + torch.ones(img.shape[0], img.shape[1], 3, device=self.device) * (1 - opacity)
+        img = opacity * img[:, :, :3] + torch.ones(img.shape[0], img.shape[1], 3, device=img.device) * (1 - opacity)
         img = img[:, :, :3]
         img = img.unsqueeze(0)
         img = img.permute(0, 3, 1, 2).to(self.device)  # HWC -> NCHW
@@ -86,7 +86,7 @@ class Painter(torch.nn.Module):
     def get_path(self):
         points = []
         self.num_control_points = torch.zeros(self.num_segments, dtype=torch.int32) + (self.control_points_per_seg - 2)
-        p0 = self.inds_normalised[self.strokes_counter] if self.use_init_method else (random.random(), random.random())
+        p0 = self.inds_normalised[self.strokes_counter] if (self.use_init_method and self.strokes_counter < len(self.inds_normalised)) else (random.random(), random.random())
         self.initial_points.append(p0)
         points.append(p0) 
         for j in range(self.num_segments):  # here is 1 by defult

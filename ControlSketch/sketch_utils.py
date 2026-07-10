@@ -103,7 +103,7 @@ def read_svg(path_svg, device, multiply=False, args=None):
                   *scene_args)
     img = img[:, :, 3:4] * img[:, :, :3] + \
           torch.ones(img.shape[0], img.shape[1], 3,
-                     device=device) * (1 - img[:, :, 3:4])
+                     device=img.device) * (1 - img[:, :, 3:4])
     img = img[:, :, :3]
     return img
 
@@ -173,11 +173,15 @@ def resize_svg(renderer, target_width, target_height):
 def make_video(cur_path):
     output_width = 224
     output_height = 224
-
-    sp.run(["ffmpeg", "-y", "-framerate", "10", "-pattern_type", "glob", "-i",
-            f"{cur_path}/svg_to_png/iter_*.png", "-vb", "20M",
-            "-vf", f"scale={output_width}:{output_height}",  # Specify output size
-            f"{cur_path}/sketch.mp4"])
+    try:
+        sp.run(["ffmpeg", "-y", "-framerate", "10", "-pattern_type", "glob", "-i",
+                f"{cur_path}/svg_to_png/iter_*.png", "-vb", "20M",
+                "-vf", f"scale={output_width}:{output_height}",  # Specify output size
+                f"{cur_path}/sketch.mp4"])
+    except FileNotFoundError:
+        print("Warning: ffmpeg not found. Skipping video generation.", flush=True)
+    except Exception as e:
+        print(f"Warning: Failed to make video: {e}", flush=True)
     
 
 
@@ -217,6 +221,12 @@ def create_masked_image(image, mask):
     # Convert the image to a numpy array and normalize
     im_np = np.array(image)
     im_np = im_np / im_np.max()
+
+    # Dynamically resize mask to match original image dimensions if shape mismatches
+    if mask.shape[:2] != im_np.shape[:2]:
+        mask_pil = Image.fromarray((mask * 255).astype(np.uint8))
+        mask_pil = mask_pil.resize(image.size, resample=Image.BILINEAR)
+        mask = np.array(mask_pil) / 255.0
 
      # Apply mask to the image
     im_np = np.expand_dims(mask, axis=-1) * im_np
@@ -281,6 +291,8 @@ def get_mask(im: Image, device):
     Uses bria model to extract the object mask
     '''
     model = AutoModelForImageSegmentation.from_pretrained("briaai/RMBG-1.4",trust_remote_code=True)
+    if str(device) == "mps" or (hasattr(device, "type") and device.type == "mps"):
+        model = model.float()
     model.to(device)
 
     # preprocess image

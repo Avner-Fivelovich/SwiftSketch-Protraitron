@@ -35,13 +35,16 @@ def get_model_args(args):
     emb_trans_dec=args.emb_trans_dec 
     normalize_model_output= args.normalize_model_output
     scaling_factor= args.scaling_factor
+    # If num_paths is defined in training/generation args, pass it as num_strokes
+    num_strokes = getattr(args, 'num_paths', 32)
 
 
     return { 'latent_dim': latent_dim, 'ff_size': ff_size, 'num_layers': num_layers, 'num_heads': num_heads,
             'dropout': dropout, 'activation': activation , 'cond_mode': cond_mode,
             'cond_mask_prob':cond_mask_prob, 'image_features_type': image_features_type, 
             'normalize_model_output': normalize_model_output, 
-            'arch': arch, 'emb_trans_dec': emb_trans_dec, 'scaling_factor': scaling_factor}
+            'arch': arch, 'emb_trans_dec': emb_trans_dec, 'scaling_factor': scaling_factor,
+            'num_strokes': num_strokes}
 
 
 def create_gaussian_diffusion(args):

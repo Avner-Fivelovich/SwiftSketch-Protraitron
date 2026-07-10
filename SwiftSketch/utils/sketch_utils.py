@@ -584,6 +584,12 @@ def create_masked_image(image, mask):
     im_np = np.array(image)
     im_np = im_np / im_np.max()
 
+    # Dynamically resize mask to match original image dimensions if shape mismatches
+    if mask.shape[:2] != im_np.shape[:2]:
+        mask_pil = Image.fromarray((mask * 255).astype(np.uint8))
+        mask_pil = mask_pil.resize(image.size, resample=Image.BILINEAR)
+        mask = np.array(mask_pil) / 255.0
+
      # Apply mask to the image
     im_np = np.expand_dims(mask, axis=-1) * im_np
     im_np[mask < mask.mean()] = 1

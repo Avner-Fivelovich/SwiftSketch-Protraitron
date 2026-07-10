@@ -124,17 +124,24 @@ def parse_arguments():
                    config=args, name=args.wandb_name, id=wandb.util.generate_id())
        
     use_gpu = not args.use_cpu
-    if not torch.cuda.is_available():
+    if not torch.cuda.is_available() and not torch.backends.mps.is_available():
         use_gpu = False
-        print("CUDA is not configured with GPU, running with CPU instead.")
+        print("GPU is not configured or available, running with CPU instead.")
+    
     if use_gpu:
-        args.device = torch.device("cuda" if (
-            torch.cuda.is_available() and torch.cuda.device_count() > 0) else "cpu")
+        if torch.cuda.is_available():
+            args.device = torch.device("cuda")
+            pydiffvg.set_use_gpu(True)
+            pydiffvg.set_device(args.device)
+        elif torch.backends.mps.is_available():
+            args.device = torch.device("mps")
+            # pydiffvg has no native Metal/MPS rendering kernels, so run diffvg on CPU
+            pydiffvg.set_use_gpu(False)
+            pydiffvg.set_device(torch.device("cpu"))
     else:
         args.device = torch.device("cpu")
-
-    pydiffvg.set_use_gpu(torch.cuda.is_available() and use_gpu)
-    pydiffvg.set_device(args.device)
+        pydiffvg.set_use_gpu(False)
+        pydiffvg.set_device(args.device)
     return args
 
 

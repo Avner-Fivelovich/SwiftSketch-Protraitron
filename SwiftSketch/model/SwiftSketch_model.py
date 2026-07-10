@@ -8,7 +8,8 @@ class SwiftSketch(nn.Module):
     def __init__(self,image_features_type= "CLIPMiddle_layer4",
                  latent_dim=256, ff_size=1024, num_layers=8, num_heads=4, dropout=0.1,
                  activation="gelu", normalize_model_output=0, 
-                 cond_mode="no_cond", cond_mask_prob=0, arch='trans_dec',  emb_trans_dec=0, scaling_factor=2):
+                 cond_mode="no_cond", cond_mask_prob=0, arch='trans_dec',  emb_trans_dec=0, scaling_factor=2,
+                 num_strokes=32):
         super().__init__()
 
         print(f'initial SwiftSketch model', flush=True)
@@ -34,6 +35,7 @@ class SwiftSketch(nn.Module):
         self.cond_mode = cond_mode
         self.cond_mask_prob = cond_mask_prob
 
+        self.num_strokes = num_strokes
         self.input_process = InputProcess( self.input_feats_dim , self.latent_dim) #define linear layer 
         self.sequence_pos_encoder = PositionalEncoding(self.latent_dim, self.dropout)
         self.emb_trans_dec = emb_trans_dec
@@ -73,7 +75,7 @@ class SwiftSketch(nn.Module):
         
 
         self.output_process = OutputProcess(self.output_feats_dim, self.latent_dim, self.ncpoints,
-                                            self.nfeats,self.normalize_output, self.scaling_factor) #define linear layer
+                                            self.nfeats,self.normalize_output, self.scaling_factor, self.num_strokes) #define linear layer
 
        
     def parameters(self):
@@ -198,7 +200,7 @@ class InputProcess(nn.Module):
 
 
 class OutputProcess(nn.Module):
-    def __init__(self, output_feats_dim, latent_dim, ncpoints, nfeats, normalize_output, scaling_factor):
+    def __init__(self, output_feats_dim, latent_dim, ncpoints, nfeats, normalize_output, scaling_factor, num_strokes=32):
         super().__init__()
         self.output_feats_dim = output_feats_dim
         self.latent_dim = latent_dim
@@ -206,6 +208,8 @@ class OutputProcess(nn.Module):
         self.nfeats = nfeats
         self.normalize_output = normalize_output
         self.scaling_factor= scaling_factor
+        self.num_strokes = num_strokes
+        # Scale the final linear projection output layer dimension to represent the sequential strokes output
         self.pointsFinal = nn.Linear(self.latent_dim, self.output_feats_dim)
       
 
