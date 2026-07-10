@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 import subprocess
+import shutil
 import xml.etree.ElementTree as ET
 import numpy as np
 from PIL import Image
@@ -95,6 +96,10 @@ def main():
     
     subprocess.check_call(cmd1)
     
+    # Save intermediate Pass 1 outputs
+    shutil.copy2(os.path.join(temp_dir_1, "final_svg.svg"), os.path.join(args.output_dir, "pass1_svg.svg"))
+    shutil.copy2(os.path.join(temp_dir_1, "final_sketch.png"), os.path.join(args.output_dir, "pass1_sketch.png"))
+    
     # ----------------------------------------------------
     # MASKING / SUBTRACTION
     # ----------------------------------------------------
@@ -107,6 +112,9 @@ def main():
     masked_png = os.path.join(temp_dir_2, "masked_input.png")
     
     mask_image_with_sketch(input_png, sketch_png, masked_png)
+    
+    # Copy the masked image to the main output directory for analysis
+    shutil.copy2(masked_png, os.path.join(args.output_dir, "masked_input.png"))
     
     # ----------------------------------------------------
     # PASS 2: Second half of strokes on residual image
@@ -123,6 +131,10 @@ def main():
     ] + unknown_args
     
     subprocess.check_call(cmd2)
+    
+    # Save intermediate Pass 2 outputs
+    shutil.copy2(os.path.join(temp_dir_2, "final_svg.svg"), os.path.join(args.output_dir, "pass2_svg.svg"))
+    shutil.copy2(os.path.join(temp_dir_2, "final_sketch.png"), os.path.join(args.output_dir, "pass2_sketch.png"))
     
     # ----------------------------------------------------
     # MERGE & RENDER FINAL
