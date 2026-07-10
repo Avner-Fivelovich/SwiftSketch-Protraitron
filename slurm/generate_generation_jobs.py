@@ -16,6 +16,7 @@ SLURM_TEMPLATE = """#!/bin/bash
 #SBATCH --error={log_subdir}/{job_name}_%j.err
 #SBATCH --partition=studentkillable
 #SBATCH --account=gpu-students
+#SBATCH --constraint="RTX3090|RTX2080Ti|A5000|A6000|L40S"
 #SBATCH --time=1440
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

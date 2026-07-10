@@ -1,0 +1,14 @@
+# Ignore large dataset directories and archives
+ControlSketch/data/train/
+ControlSketch/data/test/
+ControlSketch/data/validation/
+ControlSketch/data/*.tar.gz
+ControlSketch/data/controlsketch_sketches.tar.gz
+
+# Ignore local outputs and logs
+outputs/
+**/__pycache__/
+.DS_Store
+
+# Ignore generated slurm jobs
+slurm/jobs/
