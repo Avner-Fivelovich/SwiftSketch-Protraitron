@@ -23,7 +23,9 @@ _MODELS = {
 }
 
 
-def _download(url: str, root: str = os.path.expanduser("~/.cache/clip")):
+def _download(url: str, root: str = None):
+    if root is None:
+        root = os.environ.get("CLIP_CACHE_DIR", os.path.expanduser("~/.cache/clip"))
     os.makedirs(root, exist_ok=True)
     filename = os.path.basename(url)
 

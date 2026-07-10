@@ -19,8 +19,9 @@ if ! command -v conda &> /dev/null; then
     source /vol/joberant_nobck/data/NLP_368307701_2526a/$USER/anaconda3/bin/activate
 fi
 
-# Set HF cache directory and PyTorch CUDA allocator settings
+# Set HF cache directory, CLIP cache directory, and PyTorch CUDA allocator settings
 export HF_HOME="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/huggingface_cache"
+export CLIP_CACHE_DIR="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/clip_cache"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Activate the conda environment for swiftsketch

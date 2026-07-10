@@ -33,7 +33,7 @@ export MY_NETAPP_PATH="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER"
 cd $MY_NETAPP_PATH
 
 # Clone the repository
-git clone <URL_TO_REPOS_OR_PATH> SwiftSketch-Protraitron
+git clone https://github.com/Avner-Fivelovich/SwiftSketch-Protraitron.git SwiftSketch-Protraitron
 cd SwiftSketch-Protraitron
 
 # Fetch all branches and check out main (or your development branch)
