@@ -64,32 +64,48 @@ conda activate swiftsketch_env
 
 ## 📦 Step 3: Install Dependencies
 
-With the environment activated, run the following commands to install PyTorch with CUDA 12.1 support and all required libraries:
+To bypass disk quota limits (`Disk quota exceeded` errors) on the home folder, we redirect all caches and temp builds to NetApp. Run this in your terminal:
 
 ```bash
-# 1. Install PyTorch with CUDA 12.1
-pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
+# 1. Create and redirect cache/temp folders to NetApp
+mkdir -p /vol/joberant_nobck/data/NLP_368307701_2526a/$USER/{pip_cache,tmp}
+export PIP_CACHE_DIR="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/pip_cache"
+export TMPDIR="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/tmp"
 
-# 2. Install requirements using the relaxed requirements file
+# 2. Force install PyTorch with CUDA 12.1 compatibility
+# Note: Pinned to 2.3.1 to support sm_61 (Titan XP) architectures on the student partition.
+pip install --force-reinstall torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
+
+# 3. Install requirements using the relaxed requirements file (flash-attn is skipped)
 pip install -r slurm/requirements_relaxed.txt
 
-# 3. Install OpenAI CLIP
+# 4. Install OpenAI CLIP
 pip install git+https://github.com/openai/CLIP.git
 ```
 
 ### ⚡ Compile `diffvg` with CUDA support
-To run the differentiable rasterizer on the GPU, you must compile `diffvg` on the cluster. Since CUDA is available, `setup.py` will automatically compile with CUDA support.
+To run the differentiable rasterizer on the GPU, you must compile `diffvg` on the cluster. Since CUDA is available, `setup.py` will automatically compile with CUDA support. Modern CMake versions require a policy patch to build successfully:
 
 ```bash
-# 4. Clone and install diffvg
+# 5. Clone diffvg
 git clone --recursive https://github.com/BachiLi/diffvg.git
 cd diffvg
 
-# Run the installer (compilation takes 1-2 minutes)
+# 6. Apply policy patch to setup.py to compile successfully
+python -c "
+with open('setup.py', 'r') as f:
+    code = f.read()
+code = code.replace(\"cmake_args = [\", \"cmake_args = ['-DCMAKE_POLICY_VERSION_MINIMUM=3.5', '-DCMAKE_CXX_STANDARD=14', \")
+with open('setup.py', 'w') as f:
+    f.write(code)
+"
+
+# 7. Run the installer (compilation takes 1-2 minutes)
 python setup.py install
 
-# Go back to the main directory
+# 8. Go back to the main directory and clean up
 cd ..
+rm -rf diffvg/
 ```
 
 ---
@@ -142,27 +158,32 @@ sbatch slurm/run_step_comparison_64.slurm
 
 ---
 
-## 🎨 Step 6: Dataset Generation in Batches (Slurm Job Arrays)
+## 🎨 Step 6: Dataset Generation in Batches (Multi-Job Scripts)
 
-To prepare the dataset for model training, you must process the raw `.npz` files through ControlSketch to generate the customized stroke vector keys (e.g., `svg_16s` or `svg_64s`). Since cluster jobs have a 24-hour execution limit, we split the processing into parallel batches of **10 pictures per job** using a Slurm Job Array.
+To prepare the dataset for model training, you must process the raw `.npz` files through ControlSketch to generate the customized stroke vector keys (e.g., `svg_48s`, `svg_64s`, `svg_96s`, or `svg_128s`). Rather than a single job array, we use a Python script generator and a bash submission script to queue jobs sequentially by stroke count.
 
-### 🏃‍♂️ Running the Array Job
-From the repository root directory on the login node, submit the job array. Specify the array range corresponding to your dataset size:
-```bash
-# Example: Process 300 pictures (30 jobs of 10 pictures each)
-# Task indices will be 0, 1, 2, ..., 29.
-# This limits execution to 5 concurrent jobs at any time (%5) to share cluster resources politely.
-sbatch --array=0-29%5 slurm/run_dataset_generation.slurm
-```
+### 🏃‍♂️ Running the Jobs
+1. **Generate the Slurm scripts**:
+   This script scans the input folder, divides the images into batches of 10, and writes statically configured `.slurm` scripts for `48`, `64`, `96`, and `128` strokes under `slurm/jobs/`:
+   ```bash
+   python slurm/generate_generation_jobs.py
+   ```
 
-To run the generation for a different number of strokes (e.g., 64 strokes instead of the default 16), export the `NUM_STROKES` environment variable:
-```bash
-export NUM_STROKES=64
-sbatch --array=0-29%5 slurm/run_dataset_generation.slurm
-```
+2. **Submit the jobs to the queue**:
+   This bash script submits the generated scripts sequentially (all 48-stroke jobs first, followed by 64-stroke, 96-stroke, and finally 128-stroke jobs) with a short 0.1-second pause to be polite to the scheduler:
+   ```bash
+   ./slurm/submit_all_generation_jobs.sh
+   ```
 
 ### 📂 Output Management
-- Each parallel array task processes a slice of files starting at index `START_IDX = SLURM_ARRAY_TASK_ID * 10` up to `START_IDX + 9`.
-- The outputs are saved directly to `data/controlsketch_<STROKES>/train/`. Since each job writes to unique filenames, they do not overlap.
-- Temporary logs are created in unique directories `_temp_sketch_logs_<START_IDX>_<STROKES>` to avoid race conditions.
-- Once all jobs complete, copy the fully accumulated `data/controlsketch_<STROKES>/` directory to copy the results for model training.
+* **Generated Dataset (Source of Truth)**:
+  * `data/controlsketch_48/train/`
+  * `data/controlsketch_64/train/`
+  * `data/controlsketch_96/train/`
+  * `data/controlsketch_128/train/`
+* **Log Files (Stdout / Stderr)**:
+  * `outputs/logs/strokes_48/`
+  * `outputs/logs/strokes_64/`
+  * `outputs/logs/strokes_96/`
+  * `outputs/logs/strokes_128/`
+
