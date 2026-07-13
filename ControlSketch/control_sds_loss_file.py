@@ -65,8 +65,8 @@ class ControlSDSLoss(nn.Module):
         )
         image = image.convert("RGB")
         image = conditioning_image_transforms(image)
-        image = image.to(dtype=torch.float16)
-        image = image.to(device=self.device, dtype=torch.float16)
+        image = image.to(dtype=self.pipe.unet.dtype)
+        image = image.to(device=self.device, dtype=self.pipe.unet.dtype)
         image = image.unsqueeze(0)
         return image
 
