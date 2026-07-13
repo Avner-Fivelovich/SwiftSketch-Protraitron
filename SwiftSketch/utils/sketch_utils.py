@@ -580,6 +580,8 @@ def convert_image_to_pil(img):
     return sketch
 
 def create_masked_image(image, mask):
+    if isinstance(mask, torch.Tensor):
+        mask = mask.numpy()
     # Convert the image to a numpy array and normalize
     im_np = np.array(image)
     im_np = im_np / im_np.max()
