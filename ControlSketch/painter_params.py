@@ -3,6 +3,8 @@ import CLIP_.clip as clip
 import numpy as np
 import pydiffvg
 import torch
+import os
+import gc
 import torch.nn.functional as F
 from torchvision import transforms
 from sklearn.cluster import KMeans
@@ -206,8 +208,12 @@ class Painter(torch.nn.Module):
             beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear",
             clip_sample=False, set_alpha_to_one=False)
 
+        is_mps = (self.device.type == "mps") if hasattr(self.device, "type") else ("mps" in str(self.device))
+        sdxl_dtype = torch.float32 if is_mps else torch.float16
+        sdxl_variant = None if is_mps else "fp16"
+
         pipeline = StableDiffusionXLPipeline.from_pretrained(
-            "stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, variant="fp16",
+            "stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=sdxl_dtype, variant=sdxl_variant,
             use_safetensors=True,
             scheduler=scheduler
         ).to(self.device)
@@ -238,6 +244,7 @@ class Painter(torch.nn.Module):
         
         del latents, zts, zT, image, attn_maps, inversion_callback
         del pipeline
+        gc.collect()
         torch.cuda.empty_cache()
         return attn_map
 
