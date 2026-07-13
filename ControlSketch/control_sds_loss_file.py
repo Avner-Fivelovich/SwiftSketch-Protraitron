@@ -20,11 +20,8 @@ class ControlSDSLoss(nn.Module):
         controlnet = cc.controlnet(condition, self.device)
         self.resized_mask = []
 
-        is_mps = (self.device.type == "mps") if hasattr(self.device, "type") else ("mps" in str(self.device))
-        sds_dtype = torch.float32 if is_mps else torch.float16
-
         self.pipe = StableDiffusionControlNetPipeline.from_pretrained(
-            "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=sds_dtype, use_safetensors=True).to(self.device)
+            "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=torch.float16, use_safetensors=True).to(self.device)
 
         self.alphas = self.pipe.scheduler.alphas_cumprod.to(self.device)
         self.sigmas = (1 - self.pipe.scheduler.alphas_cumprod).to(self.device)

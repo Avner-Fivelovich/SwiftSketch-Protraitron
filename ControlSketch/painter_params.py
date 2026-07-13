@@ -206,12 +206,8 @@ class Painter(torch.nn.Module):
             beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear",
             clip_sample=False, set_alpha_to_one=False)
 
-        is_mps = (self.device.type == "mps") if hasattr(self.device, "type") else ("mps" in str(self.device))
-        sdxl_dtype = torch.float32 if is_mps else torch.float16
-        sdxl_variant = None if is_mps else "fp16"
-
         pipeline = StableDiffusionXLPipeline.from_pretrained(
-            "stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=sdxl_dtype, variant=sdxl_variant,
+            "stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, variant="fp16",
             use_safetensors=True,
             scheduler=scheduler
         ).to(self.device)
@@ -436,6 +432,8 @@ class Painter(torch.nn.Module):
 
 
     def set_attention_threshold_map(self):
+        if self.attention_map is not None:
+            self.attention_map = torch.nan_to_num(self.attention_map, nan=0.0)
         attn_map= torch.pow(self.attention_map, 2)
         attn_map_to_plot = (attn_map * self.mask) 
         weights = attn_map.numpy().astype(np.float32)
