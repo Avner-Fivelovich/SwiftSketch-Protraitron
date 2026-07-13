@@ -116,7 +116,7 @@ class ControlSDSLoss(nn.Module):
         # encode rendered image
         x = x * 2. - 1.
         with torch.cuda.amp.autocast():
-            init_latent_z = (self.pipe.vae.encode(x.to(dtype=torch.float16)).latent_dist.sample())
+            init_latent_z = (self.pipe.vae.encode(x.to(dtype=self.pipe.unet.dtype)).latent_dist.sample())
         latent_z = 0.18215 * init_latent_z  # scaling_factor * init_latents
 
         with torch.inference_mode():
