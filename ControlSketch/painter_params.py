@@ -434,6 +434,23 @@ class Painter(torch.nn.Module):
     def set_attention_threshold_map(self):
         if self.attention_map is not None:
             self.attention_map = torch.nan_to_num(self.attention_map, nan=0.0)
+            
+            # Print attention map statistics
+            print("\n=== Attention Map Statistics ===")
+            print(f"Min value: {self.attention_map.min().item():.6f}")
+            print(f"Max value: {self.attention_map.max().item():.6f}")
+            print(f"Mean value: {self.attention_map.mean().item():.6f}")
+            print(f"Std dev: {self.attention_map.std().item():.6f}")
+            
+            # Save raw attention map to disk as numpy array and image
+            os.makedirs(self.args.output_dir, exist_ok=True)
+            np.save(os.path.join(self.args.output_dir, "attention_map_raw.npy"), self.attention_map.numpy())
+            
+            # Save as grayscale PNG for visualization
+            from torchvision.utils import save_image
+            save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_raw.png"))
+            print(f"Saved attention_map_raw.npy and attention_map_raw.png to {self.args.output_dir}\n")
+
         attn_map= torch.pow(self.attention_map, 2)
         attn_map_to_plot = (attn_map * self.mask) 
         weights = attn_map.numpy().astype(np.float32)
