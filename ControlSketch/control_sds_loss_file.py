@@ -16,7 +16,6 @@ class ControlSDSLoss(nn.Module):
         self.device = device
         condition= self.args.condition
         self.conditioning_scale = self.args.conditioning_scale
-        self.condition_image = self.create_condition_image(condition)
         controlnet = cc.controlnet(condition, self.device)
         self.resized_mask = []
 
@@ -25,6 +24,7 @@ class ControlSDSLoss(nn.Module):
 
         self.alphas = self.pipe.scheduler.alphas_cumprod.to(self.device)
         self.sigmas = (1 - self.pipe.scheduler.alphas_cumprod).to(self.device)
+        self.condition_image = self.create_condition_image(condition)
 
         # creare caption
         if self.args.caption == "":
