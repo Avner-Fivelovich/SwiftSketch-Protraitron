@@ -370,8 +370,11 @@ def sort_by_contour_and_attn(renderer, mask, attn_map):
         thick_contour_tensor = get_thick_contour_tensor(mask, canvas_width, canvas_height)
         contour_mask = thick_contour_tensor.numpy()
 
-        attn_resized = F.interpolate(attn_map.unsqueeze(0).unsqueeze(0), size=(canvas_width, canvas_height), mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
-        attn_map = attn_resized.numpy()
+        if attn_map is None:
+            attn_map = np.ones((canvas_height, canvas_width), dtype=np.float32)
+        else:
+            attn_resized = F.interpolate(attn_map.unsqueeze(0).unsqueeze(0), size=(canvas_width, canvas_height), mode='bilinear', align_corners=False).squeeze(0).squeeze(0)
+            attn_map = attn_resized.numpy()
 
         for i, shape in enumerate(shapes):
             path_group = pydiffvg.ShapeGroup(shape_ids=torch.tensor([0]),
