@@ -52,10 +52,10 @@ def _encode_text_sdxl(model: StableDiffusionXLPipeline, prompt: str) -> tuple[di
     prompt_embeds_2, pooled_prompt_embeds2, = _get_text_embeddings( prompt, model.tokenizer_2, model.text_encoder_2, device)
     prompt_embeds = torch.cat((prompt_embeds, prompt_embeds_2), dim=-1)
     text_encoder_projection_dim = model.text_encoder_2.config.projection_dim
-    add_time_ids = model._get_add_time_ids((1024, 1024), (0, 0), (1024, 1024), torch.float16,
+    add_time_ids = model._get_add_time_ids((1024, 1024), (0, 0), (1024, 1024), model.unet.dtype,
                                            text_encoder_projection_dim).to(device)
-    added_cond_kwargs = {"text_embeds": pooled_prompt_embeds2, "time_ids": add_time_ids}
-    return added_cond_kwargs, prompt_embeds
+    added_cond_kwargs = {"text_embeds": pooled_prompt_embeds2.to(dtype=model.unet.dtype), "time_ids": add_time_ids}
+    return added_cond_kwargs, prompt_embeds.to(dtype=model.unet.dtype)
 
 
 def _encode_text_sdxl_with_negative(model: StableDiffusionXLPipeline, prompt: str) -> tuple[dict[str, T], T]:
@@ -72,7 +72,7 @@ def _encode_image(model: StableDiffusionXLPipeline, image: np.ndarray) -> T:
     image = torch.from_numpy(image).float() / 255.
     image = (image * 2 - 1).permute(2, 0, 1).unsqueeze(0)
     latent = model.vae.encode(image.to(model.vae.device))['latent_dist'].mean * model.vae.config.scaling_factor
-    model.vae.to(dtype=torch.float16)
+    model.vae.to(dtype=model.unet.dtype)
     return latent
 
 
@@ -99,7 +99,7 @@ def _get_noise_pred(model: StableDiffusionXLPipeline, latent: T, t: T, context: 
 def _ddim_loop(model: StableDiffusionXLPipeline, z0, prompt, guidance_scale) -> T:
     all_latent = [z0]
     added_cond_kwargs, text_embedding = _encode_text_sdxl_with_negative(model, prompt)
-    latent = z0.clone().detach().half()
+    latent = z0.clone().detach().to(dtype=model.unet.dtype)
     for i in tqdm(range(model.scheduler.num_inference_steps)):
         t = model.scheduler.timesteps[len(model.scheduler.timesteps) - i - 1]
         noise_pred = _get_noise_pred(model, latent, t, text_embedding, guidance_scale, added_cond_kwargs)
