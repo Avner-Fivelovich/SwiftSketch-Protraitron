@@ -458,6 +458,48 @@ class Painter(torch.nn.Module):
             save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_raw.png"))
             print(f"Saved attention_map_raw.npy and attention_map_raw.png to {self.args.output_dir}\n")
 
+            # Face Detection Bounding Box Boosting
+            try:
+                import cv2
+                # Convert PIL image to grayscale numpy array
+                gray_im = np.array(self.args.input_image.convert("L"))
+                
+                # Load pre-trained Haar Cascade face detector
+                cascade_path = os.path.join(cv2.__path__[0], 'data', 'haarcascade_frontalface_default.xml')
+                face_cascade = cv2.CascadeClassifier(cascade_path)
+                
+                # Detect faces
+                faces = face_cascade.detectMultiScale(gray_im, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                
+                if len(faces) > 0:
+                    # Use the largest detected face
+                    faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
+                    x_face, y_face, w_face, h_face = faces[0]
+                    
+                    # Map the face bounding box coordinates from input_image coordinates to attention_map coordinates
+                    orig_h, orig_w = gray_im.shape
+                    attn_h, attn_w = self.attention_map.shape[-2], self.attention_map.shape[-1]
+                    
+                    x_start = int(x_face * attn_w / orig_w)
+                    y_start = int(y_face * attn_h / orig_h)
+                    x_end = int((x_face + w_face) * attn_w / orig_w)
+                    y_end = int((y_face + h_face) * attn_h / orig_h)
+                    
+                    # Create face boosting mask (boost face by 3.0, reduce non-face to 0.15)
+                    face_mask = torch.ones_like(self.attention_map) * 0.15
+                    face_mask[y_start:y_end, x_start:x_end] = 3.0
+                    
+                    # Multiply attention map by the face boosting mask
+                    self.attention_map = self.attention_map * face_mask
+                    print(f"Face detected at ({x_face}, {y_face}, {w_face}, {h_face}) in original image. Applied face boosting mask!")
+                    
+                    # Save masked attention map for verification
+                    save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_masked.png"))
+                else:
+                    print("No face detected by Haar Cascade. Skipping face boosting mask.")
+            except Exception as e:
+                print(f"Error in face detection boosting: {e}")
+
         attn_map= torch.pow(self.attention_map, 2)
         attn_map_to_plot = (attn_map * self.mask) 
         weights = attn_map.numpy().astype(np.float32)
