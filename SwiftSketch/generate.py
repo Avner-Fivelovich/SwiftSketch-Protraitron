@@ -16,8 +16,16 @@ import wandb
 from transformers import AutoModelForImageSegmentation
 
 
-def main():
-    args = generate_args()
+# In generate.py
+from transformers import AutoModelForImageSegmentation
+device = dist_util.dev()
+mask_model = AutoModelForImageSegmentation.from_pretrained("briaai/RMBG-1.4", trust_remote_code=True).to(device)
+if device.type == "mps": mask_model = mask_model.float()
+
+
+def main(args=None):
+    if args is None:
+        args = generate_args()
     fixseed(args.seed)
     dist_util.setup_dist(args.device)
 

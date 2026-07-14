@@ -187,3 +187,27 @@ To prepare the dataset for model training, you must process the raw `.npz` files
   * `outputs/logs/strokes_96/`
   * `outputs/logs/strokes_128/`
 
+---
+
+## ⚠️ Queue Policies, Concurrency, and QOS Limits
+
+### 1. Slurm Node Classifications
+The CS Slurm GPU cluster consists of different partitions and node resources:
+* **SLURM-STUDENTS-NODES (e.g. `s-002` to `s-006`)**:
+  * Equipped with **NVIDIA TITAN Xp** (12 GB VRAM) and **GeForce RTX 2080 Ti** (11 GB VRAM).
+  * Ideal for batch dataset generation runs.
+* **SLURM-CLIENT-NODES (e.g. `c-001` to `c-010`, `n-007`)**:
+  * Equipped with **NVIDIA TITAN Xp** and **GeForce GTX TITAN X** (12 GB VRAM).
+* **SLURM-RESEARCH-NODES (e.g. `n-301` to `n-307`, `n-501` to `n-503`, `n-601`, `n-602`, `n-801` to `n-805`, `t-100`, `n-102`, `n-h200`, `n-b200`, `n-b201`)**:
+  * Equipped with high-performance cards: **GeForce RTX 3090** (24 GB), **RTX A5000** (24 GB), **RTX A6000** (48 GB), **NVIDIA L40S** (46 GB), **H100 80GB**, **H200** (141 GB), and **B200** (180 GB).
+
+### 2. QOS Limit Constraints (`QOSMaxGRESPerUser`)
+When submitting a large batch of jobs, you will often notice that many jobs remain in the pending (`PD`) state with the reason:
+```
+(QOSMaxGRESPerUser)
+```
+* **What this means**: The cluster enforces a Quality of Service (QOS) limit capping the maximum number of concurrent GPUs a single user can allocate at once (typically capped at **20–25 active GPUs**).
+* **Behavior**: Any jobs submitted beyond this cap will wait in the queue and automatically run as active slots become available when previous jobs finish.
+* **Best Practice**: You can submit all your batches safely; Slurm will throttle execution and process them at maximum capacity.
+
+
