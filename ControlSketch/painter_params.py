@@ -438,6 +438,38 @@ class Painter(torch.nn.Module):
         return combined_points, segmented_image_
 
 
+    def apply_classic_face_boosting(self, y_start, y_end, x_start, x_end):
+        # Create face boosting mask (boost face by 3.0, reduce non-face to 0.15)
+        face_mask = torch.ones_like(self.attention_map) * 0.15
+        face_mask[y_start:y_end, x_start:x_end] = 3.0
+        
+        # Multiply attention map by the face boosting mask
+        self.attention_map = self.attention_map * face_mask
+        print("Applied classic face boosting mask!")
+
+    def apply_feathered_face_boosting(self, y_start, y_end, x_start, x_end, w_face, h_face, attn_w, attn_h, orig_w, orig_h):
+        import cv2
+        # Create a soft face boosting mask (boost face by 3.0, reduce non-face to 0.15) with feathered edges
+        binary_face_mask = np.zeros((attn_h, attn_w), dtype=np.float32)
+        binary_face_mask[y_start:y_end, x_start:x_end] = 1.0
+        
+        # Soft transition: Blur the binary mask to feather the edges
+        # Kernel size is proportional to the face bounding box size, keeping it odd
+        k_w = int(w_face * attn_w / orig_w) | 1
+        k_h = int(h_face * attn_h / orig_h) | 1
+        k_w = max(15, k_w if k_w % 2 == 1 else k_w + 1)
+        k_h = max(15, k_h if k_h % 2 == 1 else k_h + 1)
+        
+        blurred_mask = cv2.GaussianBlur(binary_face_mask, (k_w, k_h), 0)
+        
+        # Rescale from [0, 1] to [0.15, 3.0]
+        face_mask_np = 0.15 + (3.0 - 0.15) * blurred_mask
+        face_mask = torch.from_numpy(face_mask_np).to(self.attention_map.device, dtype=self.attention_map.dtype)
+        
+        # Multiply attention map by the feathered face boosting mask
+        self.attention_map = self.attention_map * face_mask
+        print("Applied feathered face boosting mask!")
+
     def set_attention_threshold_map(self):
         if self.attention_map is not None:
             self.attention_map = torch.nan_to_num(self.attention_map, nan=0.0)
@@ -485,13 +517,11 @@ class Painter(torch.nn.Module):
                     x_end = int((x_face + w_face) * attn_w / orig_w)
                     y_end = int((y_face + h_face) * attn_h / orig_h)
                     
-                    # Create face boosting mask (boost face by 3.0, reduce non-face to 0.15)
-                    face_mask = torch.ones_like(self.attention_map) * 0.15
-                    face_mask[y_start:y_end, x_start:x_end] = 3.0
-                    
-                    # Multiply attention map by the face boosting mask
-                    self.attention_map = self.attention_map * face_mask
-                    print(f"Face detected at ({x_face}, {y_face}, {w_face}, {h_face}) in original image. Applied face boosting mask!")
+                    # Check flag and call face boosting method accordingly
+                    if getattr(self.args, 'feather_face_mask', 1) == 1:
+                        self.apply_feathered_face_boosting(y_start, y_end, x_start, x_end, w_face, h_face, attn_w, attn_h, orig_w, orig_h)
+                    else:
+                        self.apply_classic_face_boosting(y_start, y_end, x_start, x_end)
                     
                     # Save masked attention map for verification
                     save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_masked.png"))

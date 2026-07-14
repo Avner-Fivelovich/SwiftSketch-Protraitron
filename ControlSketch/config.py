@@ -75,6 +75,7 @@ def parse_arguments():
                         help="if True, use the initialization method to set the location of the initial strokes, and not random")
     parser.add_argument("--object_name", type=str, default="", help="the word for extrcting the object attention map")
     parser.add_argument("--attn_model", type=str,  default="diffusion", choices=["diffusion", "clip"], help="Choose between 'diffusion' and 'clip'")
+    parser.add_argument("--feather_face_mask", type=int, default=1, help="if 1, use feathered/blurred face boosting mask instead of sharp binary rectangle")
 
     # =================================
     # ============= control_net sds loss ==============

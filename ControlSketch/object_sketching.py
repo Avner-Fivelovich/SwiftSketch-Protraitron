@@ -1,6 +1,35 @@
 import warnings
 warnings.filterwarnings('ignore')
 warnings.simplefilter('ignore')
+
+# Monkey-patch mediapipe solutions for macOS compatibility to prevent controlnet_aux import crashes
+try:
+    import sys
+    import types
+    import mediapipe as mp
+    if not hasattr(mp, 'solutions'):
+        class MockModule(types.ModuleType):
+            def __getattr__(self, name):
+                if name.startswith('__'):
+                    raise AttributeError(name)
+                mock = MockModule(name)
+                setattr(self, name, mock)
+                return mock
+            def __call__(self, *args, **kwargs):
+                return MockModule('call')
+            def __iter__(self):
+                return iter([])
+        solutions = MockModule('solutions')
+        mp.solutions = solutions
+        sys.modules['mediapipe.solutions'] = solutions
+        sys.modules['mediapipe.solutions.drawing_utils'] = solutions.drawing_utils
+        sys.modules['mediapipe.solutions.drawing_styles'] = solutions.drawing_styles
+        sys.modules['mediapipe.solutions.face_mesh'] = solutions.face_mesh
+        sys.modules['mediapipe.solutions.face_detection'] = solutions.face_detection
+        sys.modules['mediapipe.solutions.face_mesh_connections'] = solutions.face_mesh_connections
+except ImportError:
+    pass
+
 import os
 import sys
 import traceback
