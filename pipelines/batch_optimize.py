@@ -29,6 +29,10 @@ def main():
         
     print(f"Found {len(image_paths)} images to optimize.")
     
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    ROOT_DIR = os.path.dirname(SCRIPT_DIR)
+    script_path = os.path.join(ROOT_DIR, "ControlSketch", "object_sketching.py")
+    
     for idx, img_path in enumerate(image_paths):
         basename = os.path.splitext(os.path.basename(img_path))[0]
         print(f"\n==================================================")
@@ -40,7 +44,7 @@ def main():
         
         # Build command list
         cmd = [
-            "python", "ControlSketch/object_sketching.py",
+            "python", script_path,
             "--target", img_path,
             "--num_strokes", str(args.num_strokes),
             "--num_iter", str(args.num_iter),

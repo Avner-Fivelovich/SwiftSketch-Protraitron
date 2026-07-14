@@ -2,6 +2,24 @@
 
 This guide explains how to set up the environment, compile dependencies with GPU support, sync the dataset, and execute optimization runs on the Slurm cluster.
 
+## 🖥️ Slurm Web Dashboard & Automation Controller
+
+We have created an interactive Web Dashboard located under the `slurm/` directory that handles:
+1. **Synchronizing Code**: Push local changes to the cluster NetApp directory (excluding datasets/large weights) in one click.
+2. **Synchronizing Datasets/Results**: Push datasets to NetApp and pull output logs/results back to your local Mac.
+3. **Queue Status Display**: See active and pending jobs on the cluster in real-time (`squeue`).
+4. **Interactive Log Streaming**: Stream remote execution logs directly to your local web browser terminal.
+5. **Job Submission**: Select and submit batch scripts directly to the cluster queue.
+
+### How to Run the Dashboard Local Server:
+From your local Mac terminal, run:
+```bash
+python slurm/slurm_server.py
+```
+Then open your web browser at **`http://localhost:8081`** to configure parameters and run sync tasks.
+
+---
+
 Running on Slurm offers two major advantages:
 1. **GPU-Accelerated Differentiable Rasterization**: Unlike macOS, the Slurm cluster's NVIDIA GPUs will run the differentiable rasterization (`pydiffvg`) on CUDA instead of the CPU. This removes the main CPU rasterization bottleneck.
 2. **Fast Stable Diffusion Backpass**: SDS loss calculation will run on powerful cluster GPUs instead of Apple Silicon.
