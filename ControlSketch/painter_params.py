@@ -567,6 +567,12 @@ class Painter(torch.nn.Module):
                 # Save masked attention map for verification
                 save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_masked.png"))
                 # Save the face boosting mask in isolation for verification
+                save_image(face_mask / (face_mask.max() + 1e-8), os.path.join(self.args.output_dir, "face_mask.png"))
+                return True
+        except Exception as e:
+            print(f"Error in multi-step face features boosting: {e}")
+            return False
+
     def apply_face_edges_outline_mask(self, attn_h, attn_w):
         import cv2
         import mediapipe as mp
