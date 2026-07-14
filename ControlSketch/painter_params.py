@@ -567,10 +567,95 @@ class Painter(torch.nn.Module):
                 # Save masked attention map for verification
                 save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_masked.png"))
                 # Save the face boosting mask in isolation for verification
+    def apply_face_edges_outline_mask(self, attn_h, attn_w):
+        import cv2
+        import mediapipe as mp
+        from mediapipe.tasks import python
+        from mediapipe.tasks.python import vision
+        from torchvision.utils import save_image
+        
+        try:
+            # 1. Convert input PIL image to numpy array (RGB)
+            image_np = np.array(self.args.input_image.convert("RGB"))
+            h, w, _ = image_np.shape
+            
+            # 2. Run MediaPipe FaceLandmarker
+            base_options = python.BaseOptions(model_asset_path='face_landmarker.task')
+            options = vision.FaceLandmarkerOptions(
+                base_options=base_options,
+                num_faces=1
+            )
+            
+            with vision.FaceLandmarker.create_from_options(options) as landmarker:
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_np)
+                detection_result = landmarker.detect(mp_image)
+                
+                if not detection_result.face_landmarks:
+                    print("No face detected by MediaPipe. Skipping detailed face edges outline.")
+                    return False
+                
+                landmarks = detection_result.face_landmarks[0]
+                pts = np.array([(int(p.x * w), int(p.y * h)) for p in landmarks])
+                
+                pts_attn = np.zeros_like(pts)
+                pts_attn[:, 0] = (pts[:, 0] * attn_w / w).astype(np.int32)
+                pts_attn[:, 1] = (pts[:, 1] * attn_h / h).astype(np.int32)
+                
+                # Get the chin level y-coordinate (index 152 is the bottom of the chin) plus 10 pixels
+                y_chin = pts_attn[152, 1]
+                y_chin_limit = int(y_chin + 10)
+                
+                # Get the body mask (silhouette)
+                body_mask = self.mask.cpu().numpy().astype(np.float32)
+                body_mask = cv2.resize(body_mask, (attn_w, attn_h), interpolation=cv2.INTER_LINEAR)
+                
+                # Create a head segment (silhouette from top of head down to chin level)
+                head_segment = np.zeros((attn_h, attn_w), dtype=np.float32)
+                head_segment[:y_chin_limit, :] = body_mask[:y_chin_limit, :]
+                
+                # Extract the outline contour of the head segment (hair + cheeks + chin level cut)
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+                dilated = cv2.dilate(head_segment, kernel, iterations=1)
+                eroded = cv2.erode(head_segment, kernel, iterations=1)
+                face_edges = dilated - eroded
+                
+                # Define facial feature index groups for details outline
+                LEFT_BROW_IDX = [276, 283, 282, 295, 285, 300, 293, 334, 296, 336]
+                RIGHT_BROW_IDX = [46, 53, 52, 65, 55, 70, 63, 105, 66, 107]
+                LEFT_EYE_IDX = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
+                RIGHT_EYE_IDX = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+                LIPS_IDX = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95, 185]
+                NOSE_IDX = [168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 98, 97, 326, 327]
+                
+                # Draw facial features as outline lines on face_edges
+                cv2.polylines(face_edges, [pts_attn[LEFT_BROW_IDX]], isClosed=False, color=1.0, thickness=2)
+                cv2.polylines(face_edges, [pts_attn[RIGHT_BROW_IDX]], isClosed=False, color=1.0, thickness=2)
+                cv2.polylines(face_edges, [pts_attn[LEFT_EYE_IDX]], isClosed=True, color=1.0, thickness=2)
+                cv2.polylines(face_edges, [pts_attn[RIGHT_EYE_IDX]], isClosed=True, color=1.0, thickness=2)
+                cv2.polylines(face_edges, [pts_attn[LIPS_IDX]], isClosed=True, color=1.0, thickness=2)
+                
+                nose_pts = pts_attn[NOSE_IDX]
+                for idx in range(len(nose_pts) - 1):
+                    cv2.line(face_edges, tuple(nose_pts[idx]), tuple(nose_pts[idx+1]), 1.0, thickness=2)
+                
+                # Smooth the edges mask to create a soft outline gradient
+                face_edges_blurred = cv2.GaussianBlur(face_edges, (15, 15), 0)
+                
+                # Scale mask to [w_bg, 1.0] where w_bg = 0.15 is the background
+                w_bg = 0.15
+                composed_mask = w_bg + (1.0 - w_bg) * face_edges_blurred
+                
+                # Convert to tensor and apply
+                face_mask = torch.from_numpy(composed_mask).to(self.attention_map.device, dtype=self.attention_map.dtype)
+                self.attention_map = self.attention_map * face_mask
+                print("Applied face features outline mask (Mode 3) using MediaPipe FaceLandmarker and silhouette!")
+                
+                # Save visual results
+                save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_masked.png"))
                 save_image(face_mask / (face_mask.max() + 1e-8), os.path.join(self.args.output_dir, "face_mask.png"))
                 return True
         except Exception as e:
-            print(f"Error in multi-step face features boosting: {e}")
+            print(f"Error in face features outline mask: {e}")
             return False
 
     def set_attention_threshold_map(self):
@@ -598,7 +683,9 @@ class Painter(torch.nn.Module):
             attn_h, attn_w = self.attention_map.shape[-2], self.attention_map.shape[-1]
             
             success = False
-            if boost_mode == 2:
+            if boost_mode == 3:
+                success = self.apply_face_edges_outline_mask(attn_h, attn_w)
+            elif boost_mode == 2:
                 success = self.apply_face_features_boosting_mask(attn_h, attn_w)
                 
             if not success:
