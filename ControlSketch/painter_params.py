@@ -521,8 +521,17 @@ class Painter(torch.nn.Module):
                 body_mask = self.mask.cpu().numpy().astype(np.float32)
                 body_mask = cv2.resize(body_mask, (attn_w, attn_h), interpolation=cv2.INTER_LINEAR)
                 
-                face_oval_mask = np.zeros((attn_h, attn_w), dtype=np.float32)
-                cv2.fillPoly(face_oval_mask, [pts_attn[FACE_OVAL_IDX]], 1.0)
+                # Face oval polygon (sides/chin)
+                face_poly_mask = np.zeros((attn_h, attn_w), dtype=np.float32)
+                cv2.fillPoly(face_poly_mask, [pts_attn[FACE_OVAL_IDX]], 1.0)
+                
+                # Get the hair region above the forehead from the body silhouette mask
+                y_forehead = int(pts_attn[FACE_OVAL_IDX, 1].min())
+                hair_region = np.zeros((attn_h, attn_w), dtype=np.float32)
+                hair_region[:y_forehead, :] = body_mask[:y_forehead, :]
+                
+                # Combined face + hair mask (hair to chin)
+                face_oval_mask = np.clip(face_poly_mask + hair_region, 0.0, 1.0)
                 
                 detail_mask = np.zeros((attn_h, attn_w), dtype=np.float32)
                 cv2.fillPoly(detail_mask, [pts_attn[LEFT_EYE_IDX]], 1.0)
