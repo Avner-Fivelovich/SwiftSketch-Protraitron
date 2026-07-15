@@ -85,6 +85,14 @@ class ThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     """
     daemon_threads = True
 
+    def handle_error(self, request, client_address):
+        # Suppress harmless socket connection errors when client disconnects early (e.g. Broken Pipe)
+        exc_type, exc_value, _ = sys.exc_info()
+        if exc_type in (BrokenPipeError, ConnectionResetError):
+            print(f"[INFO] Client {client_address} disconnected prematurely (Broken Pipe/Reset).")
+            return
+        super().handle_error(request, client_address)
+
 class SlurmHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Silence default logging to keep terminal clean
@@ -410,6 +418,8 @@ class SlurmHandler(BaseHTTPRequestHandler):
             condition = params.get('condition', ['depth'])[0]
             object_name = params.get('object_name', ['face'])[0]
             suffix = params.get('suffix', [''])[0].strip()
+            if 'suffix' not in params:
+                print("[WARNING] 'suffix' query parameter was not provided in the API request. Defaulting to empty suffix.")
             
             if not local_image_path:
                 self.send_sse_line("[ERROR] No target image path provided.")
