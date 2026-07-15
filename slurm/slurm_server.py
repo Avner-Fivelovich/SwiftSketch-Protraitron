@@ -332,6 +332,9 @@ class SlurmHandler(BaseHTTPRequestHandler):
             env["SSHPASS"] = password
 
         if action == "sync-code":
+            # Check for dry run option
+            dry_run = params.get('dry_run', ['false'])[0].lower() == 'true'
+            
             # Push code excluding datasets and heavy objects
             src = DEFAULT_LOCAL_DIR
             dest = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/"
@@ -344,6 +347,9 @@ class SlurmHandler(BaseHTTPRequestHandler):
             ]
             
             rsync_cmd = ["rsync", "-avz", "--progress"]
+            if dry_run:
+                rsync_cmd.append("--dry-run")
+                
             for exc in exclusions:
                 rsync_cmd.extend(["--exclude", exc])
                 
@@ -355,7 +361,8 @@ class SlurmHandler(BaseHTTPRequestHandler):
             else:
                 args = rsync_cmd
                 
-            code = self.run_stream_process(args, env, f"[LOCAL] Syncing Code: Local [{src}] ---> Cluster [{dest}]")
+            start_msg = f"[LOCAL] (DRY RUN CHECK) Checking Code Sync: Local [{src}] ---> Cluster [{dest}]" if dry_run else f"[LOCAL] Syncing Code: Local [{src}] ---> Cluster [{dest}]"
+            code = self.run_stream_process(args, env, start_msg)
             self.send_sse_finished(code)
 
         elif action == "sync-data":
