@@ -74,21 +74,26 @@ class ControlSDSLoss(nn.Module):
 
 
     def create_caption(self):
+        print("[CAPTION LOG] Generating text caption using BLIP-2 on CPU to save GPU memory...", flush=True)
         blip2processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
+        # Load BLIP-2 in float32 on CPU (float16 has limited native support on CPU)
         blip2model = Blip2ForConditionalGeneration.from_pretrained("Salesforce/blip2-opt-2.7b",
-                                                                   torch_dtype=torch.float16,
-                                                                   resume_download=True).to(
-            self.device)
+                                                                   torch_dtype=torch.float32,
+                                                                   resume_download=True).to("cpu")
         with torch.no_grad():
-            inputs = blip2processor(self.args.input_image, return_tensors="pt").to(self.device, torch.float16)
+            inputs = blip2processor(self.args.input_image, return_tensors="pt").to("cpu")
             generated_ids = blip2model.generate(**inputs, max_new_tokens=20)
             generated_text = blip2processor.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
         caption = f"{generated_text}"
         self.args.caption = caption
+        print(f"[CAPTION LOG] Generated Caption: '{caption}'", flush=True)
 
         del blip2model
         del blip2processor
-        torch.cuda.empty_cache()
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def embed_text(self):
         # tokenizer and embed text if using classifier free guidance                              
