@@ -6,10 +6,12 @@ import subprocess
 import socketserver
 import getpass
 import re
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 PORT = 8081  # Use 8081 to avoid conflict with the robot server on 8080
 active_process = None
+active_process_lock = threading.Lock()
 
 # Automatically resolve paths relative to script location
 SLURM_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -287,14 +289,15 @@ class SlurmHandler(BaseHTTPRequestHandler):
         global active_process
         self.send_sse_line(start_msg)
         try:
-            active_process = subprocess.Popen(
-                args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=env,
-                bufsize=1
-            )
+            with active_process_lock:
+                active_process = subprocess.Popen(
+                    args,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    env=env,
+                    bufsize=1
+                )
             
             # Read stdout line-by-line in real-time
             for line in active_process.stdout:
@@ -306,7 +309,8 @@ class SlurmHandler(BaseHTTPRequestHandler):
             self.send_sse_line(f"[ERROR] Process failed to execute: {e}")
             return -1
         finally:
-            active_process = None
+            with active_process_lock:
+                active_process = None
 
     def handle_run_stream(self, query_string):
         global active_process
@@ -572,14 +576,15 @@ class SlurmHandler(BaseHTTPRequestHandler):
 
     def handle_abort(self):
         global active_process
-        if active_process:
-            print("[SERVER] Terminating active cluster interaction...")
-            try:
-                active_process.terminate()
-                active_process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                active_process.kill()
-            active_process = None
+        with active_process_lock:
+            if active_process:
+                print("[SERVER] Terminating active cluster interaction...")
+                try:
+                    active_process.terminate()
+                    active_process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    active_process.kill()
+                active_process = None
             
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
@@ -599,7 +604,7 @@ def main():
     print("Press Ctrl+C to terminate.")
     print("=" * 60)
     
-    server = ThreadingHTTPServer(('0.0.0.0', PORT), SlurmHandler)
+    server = ThreadingHTTPServer(('127.0.0.1', PORT), SlurmHandler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
