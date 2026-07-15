@@ -539,12 +539,6 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Prompt/Caption (Optional)</label>
-                    <input type="text" id="customCaption" placeholder="e.g. a sketch of a woman, a line drawing of Tomer">
-                    <div class="input-helper">If provided, skips the slow BLIP-2 automatic captioning step completely.</div>
-                </div>
-
-                <div class="form-group">
                     <label>Output Folder Suffix</label>
                     <input type="text" id="customSuffix" placeholder="e.g. run1, exp_a">
                     <div class="input-helper">Optional custom tag appended to the job and output directory names.</div>
@@ -980,7 +974,6 @@
             const condition = document.getElementById("customCondition").value;
             const objName = document.getElementById("customObjectName").value.trim();
             const suffix = document.getElementById("customSuffix").value.trim();
-            const caption = document.getElementById("customCaption").value.trim();
 
             if (!numStrokes || !numIter || !objName) {
                 alert("Please fill in all form fields.");
@@ -993,8 +986,7 @@
                 `&feather_face_mask=${encodeURIComponent(feather)}` +
                 `&condition=${encodeURIComponent(condition)}` +
                 `&object_name=${encodeURIComponent(objName)}` +
-                `&suffix=${encodeURIComponent(suffix)}` +
-                `&caption=${encodeURIComponent(caption)}`;
+                `&suffix=${encodeURIComponent(suffix)}`;
 
             triggerAction('submit-single-job', paramsString);
         }
