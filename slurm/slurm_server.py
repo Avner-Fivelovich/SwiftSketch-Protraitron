@@ -47,7 +47,7 @@ def generate_custom_slurm(job_name, remote_image_path, num_strokes, num_iter, fe
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32000
+#SBATCH --mem=48000
 #SBATCH --gpus=1
 
 # 1. Activate environment
