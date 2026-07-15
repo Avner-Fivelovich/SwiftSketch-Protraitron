@@ -1,26 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SwiftSketch Slurm Dashboard</title>
-    
+    <title>Slurm SwiftSketch Dashboard</title>
+
     <!-- Premium Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
     <style>
         /* Base Reset & Design Tokens */
         :root {
             --bg-color: #0c0b14;
             --card-bg: rgba(20, 18, 33, 0.75);
-            --border-color: rgba(74, 20, 140, 0.25); /* Deep purple border */
-            --border-hover: rgba(38, 166, 154, 0.5); /* Teal hover */
+            --border-color: rgba(74, 20, 140, 0.25);
+            /* Deep purple border */
+            --border-hover: rgba(38, 166, 154, 0.5);
+            /* Teal hover */
             --text-color: #f3f2fa;
             --text-muted: #9593a6;
-            --accent-primary: #7e57c2; /* Deep violet */
-            --accent-secondary: #26a69a; /* Teal */
+            --accent-primary: #7e57c2;
+            /* Deep violet */
+            --accent-secondary: #26a69a;
+            /* Teal */
             --accent-gradient: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
             --terminal-bg: #07060b;
             --success: #26a69a;
@@ -39,7 +46,7 @@
 
         body {
             background-color: var(--bg-color);
-            background-image: 
+            background-image:
                 radial-gradient(at 0% 0%, rgba(74, 20, 140, 0.2) 0px, transparent 50%),
                 radial-gradient(at 100% 100%, rgba(38, 166, 154, 0.15) 0px, transparent 50%);
             color: var(--text-color);
@@ -230,7 +237,8 @@
             letter-spacing: 0.05em;
         }
 
-        select, input[type="text"] {
+        select,
+        input[type="text"] {
             width: 100%;
             background: rgba(7, 6, 11, 0.6);
             border: 1px solid var(--border-color);
@@ -243,7 +251,8 @@
             transition: all 0.2s;
         }
 
-        select:focus, input[type="text"]:focus {
+        select:focus,
+        input[type="text"]:focus {
             border-color: var(--accent-secondary);
             box-shadow: 0 0 0 2px rgba(38, 166, 154, 0.2);
         }
@@ -336,7 +345,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: inset 0 2px 10px rgba(0,0,0,0.9);
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.9);
             flex: 1;
             min-height: 380px;
         }
@@ -360,9 +369,18 @@
             height: 10px;
             border-radius: 50%;
         }
-        .dot-red { background: var(--error); }
-        .dot-yellow { background: var(--warning); }
-        .dot-green { background: var(--success); }
+
+        .dot-red {
+            background: var(--error);
+        }
+
+        .dot-yellow {
+            background: var(--warning);
+        }
+
+        .dot-green {
+            background: var(--success);
+        }
 
         .terminal-title {
             font-size: 0.75rem;
@@ -385,28 +403,44 @@
             background-color: var(--terminal-bg);
         }
 
-        .term-info { color: #a5b4fc; }
-        .term-success { color: var(--success); }
-        .term-warning { color: var(--warning); }
-        .term-error { color: var(--error); font-weight: bold; }
-        
+        .term-info {
+            color: #a5b4fc;
+        }
+
+        .term-success {
+            color: var(--success);
+        }
+
+        .term-warning {
+            color: var(--warning);
+        }
+
+        .term-error {
+            color: var(--error);
+            font-weight: bold;
+        }
+
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
         }
+
         ::-webkit-scrollbar-track {
             background: transparent;
         }
+
         ::-webkit-scrollbar-thumb {
             background: rgba(74, 20, 140, 0.3);
             border-radius: 3px;
         }
+
         ::-webkit-scrollbar-thumb:hover {
             background: var(--accent-primary);
         }
     </style>
 </head>
+
 <body>
 
     <header>
@@ -428,15 +462,24 @@
                 <h2>Sync Actions</h2>
                 <div class="btn-sync-group">
                     <button class="btn btn-primary" onclick="triggerAction('sync-code')">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                        </svg>
                         Push Code to Cluster
                     </button>
                     <button class="btn" onclick="triggerAction('sync-data')">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                        </svg>
                         Push Local Datasets
                     </button>
                     <button class="btn" onclick="triggerAction('sync-pull')">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                        </svg>
                         Pull Output Results
                     </button>
                 </div>
@@ -445,7 +488,7 @@
             <!-- Custom Image Job Builder Card -->
             <div class="glass-card">
                 <h2>Single Image Job Builder</h2>
-                
+
                 <!-- Target Image dynamic selector -->
                 <div class="form-group">
                     <label>Select Target Image</label>
@@ -491,7 +534,10 @@
                 </div>
 
                 <button class="btn btn-primary" onclick="submitSingleImageJob()" style="width: 100%;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.5">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
                     Upload & Submit Job
                 </button>
             </div>
@@ -499,7 +545,7 @@
             <!-- Launcher Card -->
             <div class="glass-card">
                 <h2>Job Orchestration</h2>
-                
+
                 <!-- Script selector -->
                 <div class="form-group">
                     <label>Batch Job Script</label>
@@ -514,18 +560,22 @@
                 <!-- Custom Command input -->
                 <div class="form-group" id="customCommandGroup" style="display: none;">
                     <label>Custom Remote Bash Command</label>
-                    <input type="text" id="customCommandInput" placeholder="e.g. sbatch slurm/jobs/strokes_48/ss_gen_48_b0.slurm">
+                    <input type="text" id="customCommandInput"
+                        placeholder="e.g. sbatch slurm/jobs/strokes_48/ss_gen_48_b0.slurm">
                     <div class="input-helper">Runs directly inside remote directory.</div>
                 </div>
 
                 <div class="btn-sync-group">
                     <button class="btn btn-primary" id="btnSubmit" onclick="submitJob()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
                         Execute / Submit
                     </button>
                 </div>
             </div>
-            
+
             <!-- Log Streamer Card -->
             <div class="glass-card">
                 <h2>Log Streaming</h2>
@@ -535,7 +585,9 @@
                     <div class="input-helper">Supports tailing remote files live in the terminal.</div>
                 </div>
                 <button class="btn" onclick="streamLogFile()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h20M12 2v20"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M2 12h20M12 2v20" />
+                    </svg>
                     Stream Log Live
                 </button>
             </div>
@@ -548,11 +600,14 @@
                 <div class="queue-header">
                     <h2>Active Cluster Queue (squeue)</h2>
                     <button class="btn" onclick="fetchQueue()" style="padding: 0.4rem 0.8rem; font-size: 0.75rem;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5">
+                            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                        </svg>
                         Refresh Queue
                     </button>
                 </div>
-                
+
                 <div class="table-container">
                     <table id="queueTable">
                         <thead>
@@ -588,21 +643,26 @@
                     </div>
                     <div class="terminal-title">LIVE PROCESS TERMINAL OUTPUT</div>
                     <div style="display: flex; gap: 0.5rem;">
-                        <button class="btn btn-danger" id="btnAbort" onclick="abortExecution()" style="display: none; padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
+                        <button class="btn btn-danger" id="btnAbort" onclick="abortExecution()"
+                            style="display: none; padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
                             Stop Command
                         </button>
-                        <button class="btn" onclick="viewServerLog()" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
+                        <button class="btn" onclick="viewServerLog()"
+                            style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
                             View Web Log
                         </button>
-                        <button class="btn" onclick="clearServerLog()" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
+                        <button class="btn" onclick="clearServerLog()"
+                            style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
                             Clear Web Log
                         </button>
-                        <button class="btn" onclick="clearTerminal()" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
+                        <button class="btn" onclick="clearTerminal()"
+                            style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
                             Clear Console
                         </button>
                     </div>
                 </div>
-                <div class="terminal-body" id="terminalBody">Ready to run syncs or jobs.<br>Choose an action from the side panels.</div>
+                <div class="terminal-body" id="terminalBody">Ready to run syncs or jobs.<br>Choose an action from the
+                    side panels.</div>
             </div>
         </div>
     </div>
@@ -617,7 +677,7 @@
         function updateCustomScriptField() {
             const selector = document.getElementById("scriptSelector");
             const customGroup = document.getElementById("customCommandGroup");
-            
+
             if (selector.value === "custom") {
                 customGroup.style.display = "block";
             } else {
@@ -666,7 +726,7 @@
             let url = `/api/run?action=${actionName}${optionalParamsString}`;
             eventSource = new EventSource(url);
 
-            eventSource.onmessage = function(event) {
+            eventSource.onmessage = function (event) {
                 const line = event.data;
 
                 if (line === '[PROCESS_COMPLETED]') {
@@ -697,7 +757,7 @@
                 term.scrollTop = term.scrollHeight;
             };
 
-            eventSource.onerror = function() {
+            eventSource.onerror = function () {
                 completeRun('idle', "❌ Stream error: connection lost.");
             };
         }
@@ -715,7 +775,7 @@
 
         function abortExecution() {
             if (!confirm("Are you sure you want to stop the active process?")) return;
-            
+
             fetch('/api/abort', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
@@ -748,7 +808,7 @@
                 alert("Please enter a valid remote log path.");
                 return;
             }
-            
+
             triggerAction('remote-cmd', `&cmd=${encodeURIComponent('tail -n 100 -f ' + logPath)}`);
         }
 
@@ -773,7 +833,7 @@
         function parseSqueue(output) {
             const tbody = document.getElementById("queueBody");
             tbody.innerHTML = "";
-            
+
             const lines = output.trim().split("\n");
             if (lines.length <= 1) {
                 tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No active jobs in the queue.</td></tr>`;
@@ -784,11 +844,11 @@
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
-                
+
                 // Parse standard spaces
                 const tokens = line.split(/\s+/);
                 if (tokens.length < 8) continue;
-                
+
                 const jobId = tokens[0];
                 const partition = tokens[1];
                 const jobName = tokens[2];
@@ -797,7 +857,7 @@
                 const time = tokens[5];
                 const nodes = tokens[6];
                 const nodelistReason = tokens.slice(7).join(" ");
-                
+
                 let stateClass = "badge-status";
                 if (state === 'R') {
                     stateClass += " badge-status-running";
@@ -828,7 +888,7 @@
 
         function cancelJob(jobId) {
             if (!confirm(`Are you sure you want to cancel Slurm Job ${jobId}?`)) return;
-            
+
             fetch(`/api/scancel?job_id=${jobId}`, { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
@@ -847,7 +907,7 @@
         function loadLocalImages() {
             const selector = document.getElementById("imageSelector");
             selector.innerHTML = '<option value="">Scanning local images...</option>';
-            
+
             fetch('/api/list-images')
                 .then(res => res.json())
                 .then(data => {
@@ -856,7 +916,7 @@
                         selector.innerHTML = '<option value="">No images found in Pictures/</option>';
                         return;
                     }
-                    
+
                     data.images.forEach(img => {
                         const opt = document.createElement("option");
                         opt.value = img.absolute_path;
@@ -876,25 +936,25 @@
                 alert("Please select a target image.");
                 return;
             }
-            
+
             const numStrokes = document.getElementById("customStrokes").value.trim();
             const numIter = document.getElementById("customIter").value.trim();
             const feather = document.getElementById("customFeather").value;
             const condition = document.getElementById("customCondition").value;
             const objName = document.getElementById("customObjectName").value.trim();
-            
+
             if (!numStrokes || !numIter || !objName) {
                 alert("Please fill in all form fields.");
                 return;
             }
-            
+
             const paramsString = `&image_path=${encodeURIComponent(imgPath)}` +
-                                 `&num_strokes=${encodeURIComponent(numStrokes)}` +
-                                 `&num_iter=${encodeURIComponent(numIter)}` +
-                                 `&feather_face_mask=${encodeURIComponent(feather)}` +
-                                 `&condition=${encodeURIComponent(condition)}` +
-                                 `&object_name=${encodeURIComponent(objName)}`;
-                                 
+                `&num_strokes=${encodeURIComponent(numStrokes)}` +
+                `&num_iter=${encodeURIComponent(numIter)}` +
+                `&feather_face_mask=${encodeURIComponent(feather)}` +
+                `&condition=${encodeURIComponent(condition)}` +
+                `&object_name=${encodeURIComponent(objName)}`;
+
             triggerAction('submit-single-job', paramsString);
         }
 
@@ -913,7 +973,7 @@
 
         function clearServerLog() {
             if (!confirm("Are you sure you want to clear the persistent web actions log file?")) return;
-            
+
             fetch('/api/clear-log', { method: 'POST' })
                 .then(res => res.json())
                 .then(data => {
@@ -933,4 +993,5 @@
         });
     </script>
 </body>
+
 </html>

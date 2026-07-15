@@ -52,7 +52,7 @@ def parse_arguments():
     parser.add_argument("--batch_size", type=int, default=1,
                         help="for optimization it's only one image")
     parser.add_argument("--save_interval", type=int, default=100)
-    parser.add_argument("--object_size_ratio", type=float, default=0.75)     
+    parser.add_argument("--object_size_ratio", type=float, default=1.0)     
     parser.add_argument("--render_size", type=int, default=512)   
     parser.add_argument("--output_svg_size", type=int, default=512) 
     
@@ -127,22 +127,43 @@ def parse_arguments():
     use_gpu = not args.use_cpu
     if not torch.cuda.is_available() and not torch.backends.mps.is_available():
         use_gpu = False
-        print("GPU is not configured or available, running with CPU instead.")
+        print("[DEVICE LOG] GPU is not configured or available, running with CPU instead.")
     
     if use_gpu:
         if torch.cuda.is_available():
             args.device = torch.device("cuda")
             pydiffvg.set_use_gpu(True)
             pydiffvg.set_device(args.device)
+            
+            # Print CUDA device metadata
+            dev_name = torch.cuda.get_device_name(0)
+            total_mem = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            print(f"[DEVICE LOG] Using CUDA Device: {dev_name}")
+            print(f"[DEVICE LOG] Total VRAM: {total_mem:.2f} GB")
+            
+            # Enable cuDNN autotuning optimization
+            torch.backends.cudnn.benchmark = True
+            print("[DEVICE OPTIMIZATION] Enabled cuDNN benchmark auto-tuning.")
+            
+            # Enable TF32 for Ampere or newer GPUs (Compute Capability >= 8.0)
+            major, minor = torch.cuda.get_device_capability(0)
+            if major >= 8:
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.allow_tf32 = True
+                print("[DEVICE OPTIMIZATION] Enabled TF32 operations for Ampere+ GPU.")
+            else:
+                print(f"[DEVICE OPTIMIZATION] Device capability {major}.{minor} < 8.0. TF32 not supported/enabled.")
         elif torch.backends.mps.is_available():
             args.device = torch.device("mps")
             # pydiffvg has no native Metal/MPS rendering kernels, so run diffvg on CPU
             pydiffvg.set_use_gpu(False)
             pydiffvg.set_device(torch.device("cpu"))
+            print("[DEVICE LOG] Using Apple Silicon MPS (Metal Performance Shaders)")
     else:
         args.device = torch.device("cpu")
         pydiffvg.set_use_gpu(False)
         pydiffvg.set_device(args.device)
+        print("[DEVICE LOG] Using CPU computational unit")
     return args
 
 
