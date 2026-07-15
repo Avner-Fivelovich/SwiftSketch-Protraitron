@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwiftSketch Slurm Dashboard</title>
+    
+    <!-- Premium Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Base Reset & Design Tokens */
+        :root {
+            --bg-color: #0c0b14;
+            --card-bg: rgba(20, 18, 33, 0.75);
+            --border-color: rgba(74, 20, 140, 0.25); /* Deep purple border */
+            --border-hover: rgba(38, 166, 154, 0.5); /* Teal hover */
+            --text-color: #f3f2fa;
+            --text-muted: #9593a6;
+            --accent-primary: #7e57c2; /* Deep violet */
+            --accent-secondary: #26a69a; /* Teal */
+            --accent-gradient: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            --terminal-bg: #07060b;
+            --success: #26a69a;
+            --warning: #ffb74d;
+            --error: #ef5350;
+            --font-display: 'Space Grotesk', -apple-system, sans-serif;
+            --font-sans: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(74, 20, 140, 0.2) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(38, 166, 154, 0.15) 0px, transparent 50%);
+            color: var(--text-color);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.5rem 2rem;
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: rgba(12, 11, 20, 0.7);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title h1 {
+            font-family: var(--font-display);
+            text-transform: uppercase;
+            font-weight: 700;
+            font-size: 1.6rem;
+            letter-spacing: 0.05em;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .header-title p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.2rem;
+            letter-spacing: 0.02em;
+        }
+
+        .status-badge {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            box-shadow: 0 0 8px var(--text-muted);
+        }
+
+        .app-container {
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 450px 1fr;
+            gap: 2rem;
+            flex: 1;
+        }
+
+        /* Glassmorphism Cards */
+        .glass-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            backdrop-filter: blur(16px);
+            padding: 1.75rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+            transition: border-color 0.3s;
+        }
+
+        .glass-card:hover {
+            border-color: rgba(38, 166, 154, 0.3);
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            height: fit-content;
+        }
+
+        h2 {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            color: var(--accent-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Buttons & Interactions */
+        .btn {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text-color);
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background: rgba(38, 166, 154, 0.08);
+            border-color: var(--accent-secondary);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: var(--accent-gradient);
+            border: none;
+            color: #0c0b14;
+            box-shadow: 0 4px 14px rgba(126, 87, 194, 0.35);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #8e62e6 0%, #2ec4b4 100%);
+            box-shadow: 0 6px 20px rgba(126, 87, 194, 0.45);
+            color: #0c0b14;
+        }
+
+        .btn-danger {
+            background: rgba(239, 83, 80, 0.1);
+            border-color: var(--error);
+            color: var(--error);
+        }
+
+        .btn-danger:hover {
+            background: var(--error);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(239, 83, 80, 0.3);
+        }
+
+        .btn-sync-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        /* Form Layouts */
+        .form-group {
+            margin-bottom: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        select, input[type="text"] {
+            width: 100%;
+            background: rgba(7, 6, 11, 0.6);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 0.7rem 0.9rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-family: var(--font-sans);
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        select:focus, input[type="text"]:focus {
+            border-color: var(--accent-secondary);
+            box-shadow: 0 0 0 2px rgba(38, 166, 154, 0.2);
+        }
+
+        .input-helper {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.1rem;
+        }
+
+        /* Main Workspace */
+        .main-pane {
+            display: flex;
+            flex-direction: column;
+            gap: 1.75rem;
+        }
+
+        /* Queue Table & Lists */
+        .queue-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: rgba(7, 6, 11, 0.4);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            text-align: left;
+        }
+
+        th {
+            background: rgba(25, 22, 43, 0.6);
+            color: var(--accent-secondary);
+            padding: 0.75rem 1rem;
+            font-family: var(--font-display);
+            text-transform: uppercase;
+            font-weight: 600;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 0.65rem 1rem;
+            border-bottom: 1px solid rgba(74, 20, 140, 0.15);
+            color: #d1d0e0;
+        }
+
+        tr:hover td {
+            background: rgba(38, 166, 154, 0.03);
+            color: #fff;
+        }
+
+        .badge-status {
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 0.7rem;
+            letter-spacing: 0.02em;
+        }
+
+        .badge-status-running {
+            background: rgba(38, 166, 154, 0.15);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .badge-status-pending {
+            background: rgba(255, 183, 77, 0.15);
+            color: var(--warning);
+            border: 1px solid var(--warning);
+        }
+
+        /* Terminal Logs */
+        .terminal-window {
+            background: var(--terminal-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.9);
+            flex: 1;
+            min-height: 380px;
+        }
+
+        .terminal-header {
+            background: rgba(25, 22, 43, 0.4);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.65rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .terminal-dots {
+            display: flex;
+            gap: 0.4rem;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .dot-red { background: var(--error); }
+        .dot-yellow { background: var(--warning); }
+        .dot-green { background: var(--success); }
+
+        .terminal-title {
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            font-weight: 500;
+        }
+
+        .terminal-body {
+            padding: 1.25rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #d1d5db;
+            overflow-y: auto;
+            max-height: 480px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            background-color: var(--terminal-bg);
+        }
+
+        .term-info { color: #a5b4fc; }
+        .term-success { color: var(--success); }
+        .term-warning { color: var(--warning); }
+        .term-error { color: var(--error); font-weight: bold; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(74, 20, 140, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-primary);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <h1>SwiftSketch Slurm Manager</h1>
+            <p>Remote cluster job execution, code synchronization, and squeue dashboard</p>
+        </div>
+        <div class="status-badge" id="statusBadge">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <span id="statusText">IDLE</span>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <!-- Sidebar Panels -->
+        <div class="sidebar">
+            <!-- Sync Card -->
+            <div class="glass-card">
+                <h2>Sync Actions</h2>
+                <div class="btn-sync-group">
+                    <button class="btn btn-primary" onclick="triggerAction('sync-code')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        Push Code to Cluster
+                    </button>
+                    <button class="btn" onclick="triggerAction('sync-data')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                        Push Local Datasets
+                    </button>
+                    <button class="btn" onclick="triggerAction('sync-pull')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                        Pull Output Results
+                    </button>
+                </div>
+            </div>
+
+            <!-- Custom Image Job Builder Card -->
+            <div class="glass-card">
+                <h2>Single Image Job Builder</h2>
+                
+                <!-- Target Image dynamic selector -->
+                <div class="form-group">
+                    <label>Select Target Image</label>
+                    <select id="imageSelector">
+                        <option value="">Scanned images loading...</option>
+                    </select>
+                    <div class="input-helper">Scanned recursively from local <code>Pictures/</code>.</div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label>Strokes</label>
+                        <input type="text" id="customStrokes" value="98">
+                    </div>
+                    <div class="form-group">
+                        <label>Iterations</label>
+                        <input type="text" id="customIter" value="1200">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Feather Mask Mode</label>
+                    <select id="customFeather">
+                        <option value="3">Face Mask (Mode 3)</option>
+                        <option value="0">Disabled (Mode 0)</option>
+                        <option value="1">Mode 1</option>
+                        <option value="2">Mode 2</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Conditioning Mode</label>
+                    <select id="customCondition">
+                        <option value="depth">Depth (ControlNet)</option>
+                        <option value="edges">Edges (ControlNet)</option>
+                        <option value="canny">Canny</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Object Attention Name</label>
+                    <input type="text" id="customObjectName" value="face">
+                </div>
+
+                <button class="btn btn-primary" onclick="submitSingleImageJob()" style="width: 100%;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    Upload & Submit Job
+                </button>
+            </div>
+
+            <!-- Launcher Card -->
+            <div class="glass-card">
+                <h2>Job Orchestration</h2>
+                
+                <!-- Script selector -->
+                <div class="form-group">
+                    <label>Batch Job Script</label>
+                    <select id="scriptSelector" onchange="updateCustomScriptField()">
+                        <option value="slurm/run_step_comparison.slurm">Step Comparison (16 strokes)</option>
+                        <option value="slurm/run_step_comparison_64.slurm">Step Comparison (64 strokes)</option>
+                        <option value="slurm/run_dataset_generation.slurm">Dataset Generation</option>
+                        <option value="custom">Custom Command / Custom sbatch...</option>
+                    </select>
+                </div>
+
+                <!-- Custom Command input -->
+                <div class="form-group" id="customCommandGroup" style="display: none;">
+                    <label>Custom Remote Bash Command</label>
+                    <input type="text" id="customCommandInput" placeholder="e.g. sbatch slurm/jobs/strokes_48/ss_gen_48_b0.slurm">
+                    <div class="input-helper">Runs directly inside remote directory.</div>
+                </div>
+
+                <div class="btn-sync-group">
+                    <button class="btn btn-primary" id="btnSubmit" onclick="submitJob()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        Execute / Submit
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Log Streamer Card -->
+            <div class="glass-card">
+                <h2>Log Streaming</h2>
+                <div class="form-group">
+                    <label>Remote Log File Path</label>
+                    <input type="text" id="logPathInput" placeholder="outputs/logs/ss_comp_16_*.out">
+                    <div class="input-helper">Supports tailing remote files live in the terminal.</div>
+                </div>
+                <button class="btn" onclick="streamLogFile()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h20M12 2v20"/></svg>
+                    Stream Log Live
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Dashboard View -->
+        <div class="main-pane">
+            <!-- Queue Section -->
+            <div class="glass-card">
+                <div class="queue-header">
+                    <h2>Active Cluster Queue (squeue)</h2>
+                    <button class="btn" onclick="fetchQueue()" style="padding: 0.4rem 0.8rem; font-size: 0.75rem;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        Refresh Queue
+                    </button>
+                </div>
+                
+                <div class="table-container">
+                    <table id="queueTable">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>Partition</th>
+                                <th>Job Name</th>
+                                <th>User</th>
+                                <th>State</th>
+                                <th>Run Time</th>
+                                <th>Node Allocation</th>
+                                <th style="width: 80px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="queueBody">
+                            <tr>
+                                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                    Click "Refresh Queue" to query cluster status.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Terminal Output Section -->
+            <div class="terminal-window">
+                <div class="terminal-header">
+                    <div class="terminal-dots">
+                        <div class="dot dot-red"></div>
+                        <div class="dot dot-yellow"></div>
+                        <div class="dot dot-green"></div>
+                    </div>
+                    <div class="terminal-title">LIVE PROCESS TERMINAL OUTPUT</div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-danger" id="btnAbort" onclick="abortExecution()" style="display: none; padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
+                            Stop Command
+                        </button>
+                        <button class="btn" onclick="viewServerLog()" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
+                            View Web Log
+                        </button>
+                        <button class="btn" onclick="clearServerLog()" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
+                            Clear Web Log
+                        </button>
+                        <button class="btn" onclick="clearTerminal()" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
+                            Clear Console
+                        </button>
+                    </div>
+                </div>
+                <div class="terminal-body" id="terminalBody">Ready to run syncs or jobs.<br>Choose an action from the side panels.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+
+        function clearTerminal() {
+            document.getElementById("terminalBody").innerHTML = "Terminal cleared.\n";
+        }
+
+        function updateCustomScriptField() {
+            const selector = document.getElementById("scriptSelector");
+            const customGroup = document.getElementById("customCommandGroup");
+            
+            if (selector.value === "custom") {
+                customGroup.style.display = "block";
+            } else {
+                customGroup.style.display = "none";
+            }
+        }
+
+        function setStatus(status, text) {
+            const badge = document.getElementById("statusBadge");
+            const indicator = document.getElementById("statusIndicator");
+            const statusText = document.getElementById("statusText");
+
+            statusText.innerText = text;
+
+            if (status === 'idle') {
+                badge.style.color = "var(--text-muted)";
+                badge.style.borderColor = "var(--border-color)";
+                indicator.style.backgroundColor = "var(--text-muted)";
+                indicator.style.boxShadow = "none";
+                document.getElementById("btnAbort").style.display = "none";
+            } else if (status === 'busy') {
+                badge.style.color = "var(--warning)";
+                badge.style.borderColor = "var(--warning)";
+                indicator.style.backgroundColor = "var(--warning)";
+                indicator.style.boxShadow = "0 0 8px var(--warning)";
+                document.getElementById("btnAbort").style.display = "inline-block";
+            } else if (status === 'success') {
+                badge.style.color = "var(--accent-secondary)";
+                badge.style.borderColor = "var(--accent-secondary)";
+                indicator.style.backgroundColor = "var(--accent-secondary)";
+                indicator.style.boxShadow = "0 0 8px var(--accent-secondary)";
+                document.getElementById("btnAbort").style.display = "none";
+            }
+        }
+
+        function triggerAction(actionName, optionalParamsString = "") {
+            if (eventSource) {
+                alert("A process is already running. Abort it first if necessary.");
+                return;
+            }
+
+            setStatus('busy', 'EXECUTING');
+            const term = document.getElementById("terminalBody");
+            term.innerHTML = `<span class="term-info">Initializing sync or execution event stream...</span>\n`;
+
+            let url = `/api/run?action=${actionName}${optionalParamsString}`;
+            eventSource = new EventSource(url);
+
+            eventSource.onmessage = function(event) {
+                const line = event.data;
+
+                if (line === '[PROCESS_COMPLETED]') {
+                    completeRun('success', '✅ Process finished successfully.');
+                    fetchQueue(); // Auto refresh queue
+                    return;
+                }
+
+                if (line.startsWith('[PROCESS_FAILED]')) {
+                    const exitCode = line.split(': ')[1] || '1';
+                    completeRun('idle', `❌ Process failed with exit code ${exitCode}.`);
+                    return;
+                }
+
+                // Add colors for typical outputs
+                let cleanLine = line;
+                if (line.includes('[ERROR]') || line.includes('error') || line.includes('failed') || line.includes('Failed')) {
+                    cleanLine = `<span class="term-error">${line}</span>`;
+                } else if (line.includes('[SUCCESS]') || line.includes('successfully') || line.includes('completed')) {
+                    cleanLine = `<span class="term-success">${line}</span>`;
+                } else if (line.includes('[WARNING]') || line.includes('warning')) {
+                    cleanLine = `<span class="term-warning">${line}</span>`;
+                } else if (line.startsWith('[LOCAL]') || line.startsWith('[CLUSTER]')) {
+                    cleanLine = `<span class="term-info">${line}</span>`;
+                }
+
+                term.innerHTML += cleanLine + "\n";
+                term.scrollTop = term.scrollHeight;
+            };
+
+            eventSource.onerror = function() {
+                completeRun('idle', "❌ Stream error: connection lost.");
+            };
+        }
+
+        function completeRun(status, finalMsg) {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            setStatus(status, 'IDLE');
+            const term = document.getElementById("terminalBody");
+            term.innerHTML += `\n<span class="term-info">${finalMsg}</span>\n`;
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function abortExecution() {
+            if (!confirm("Are you sure you want to stop the active process?")) return;
+            
+            fetch('/api/abort', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    completeRun('idle', "⚠️ Process execution aborted by user.");
+                })
+                .catch(err => {
+                    alert("Failed to abort process: " + err);
+                });
+        }
+
+        function submitJob() {
+            const selector = document.getElementById("scriptSelector");
+            let cmd = "";
+            if (selector.value === "custom") {
+                cmd = document.getElementById("customCommandInput").value.trim();
+                if (!cmd) {
+                    alert("Please fill in a custom command.");
+                    return;
+                }
+            } else {
+                cmd = `sbatch ${selector.value}`;
+            }
+
+            triggerAction('remote-cmd', `&cmd=${encodeURIComponent(cmd)}`);
+        }
+
+        function streamLogFile() {
+            const logPath = document.getElementById("logPathInput").value.trim();
+            if (!logPath) {
+                alert("Please enter a valid remote log path.");
+                return;
+            }
+            
+            triggerAction('remote-cmd', `&cmd=${encodeURIComponent('tail -n 100 -f ' + logPath)}`);
+        }
+
+        function fetchQueue() {
+            const tbody = document.getElementById("queueBody");
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Fetching squeue from cluster...</td></tr>`;
+
+            fetch('/api/squeue')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        parseSqueue(data.output);
+                    } else {
+                        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--error); padding: 1.5rem;">Error querying squeue: ${data.error}</td></tr>`;
+                    }
+                })
+                .catch(err => {
+                    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--error); padding: 1.5rem;">Failed to fetch queue: ${err}</td></tr>`;
+                });
+        }
+
+        function parseSqueue(output) {
+            const tbody = document.getElementById("queueBody");
+            tbody.innerHTML = "";
+            
+            const lines = output.trim().split("\n");
+            if (lines.length <= 1) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No active jobs in the queue.</td></tr>`;
+                return;
+            }
+
+            // Skip header line
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                // Parse standard spaces
+                const tokens = line.split(/\s+/);
+                if (tokens.length < 8) continue;
+                
+                const jobId = tokens[0];
+                const partition = tokens[1];
+                const jobName = tokens[2];
+                const user = tokens[3];
+                const state = tokens[4];
+                const time = tokens[5];
+                const nodes = tokens[6];
+                const nodelistReason = tokens.slice(7).join(" ");
+                
+                let stateClass = "badge-status";
+                if (state === 'R') {
+                    stateClass += " badge-status-running";
+                } else if (state === 'PD') {
+                    stateClass += " badge-status-pending";
+                }
+
+                const displayState = state === 'R' ? 'RUNNING' : (state === 'PD' ? 'PENDING' : state);
+
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${jobId}</td>
+                    <td>${partition}</td>
+                    <td>${jobName}</td>
+                    <td>${user}</td>
+                    <td><span class="${stateClass}">${displayState}</span></td>
+                    <td>${time}</td>
+                    <td>${nodelistReason}</td>
+                    <td>
+                        <button class="btn btn-danger" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;" onclick="cancelJob('${jobId}')">
+                            Cancel
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            }
+        }
+
+        function cancelJob(jobId) {
+            if (!confirm(`Are you sure you want to cancel Slurm Job ${jobId}?`)) return;
+            
+            fetch(`/api/scancel?job_id=${jobId}`, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert(data.message);
+                        fetchQueue();
+                    } else {
+                        alert("Failed to cancel job: " + data.error);
+                    }
+                })
+                .catch(err => {
+                    alert("Request failed: " + err);
+                });
+        }
+
+        function loadLocalImages() {
+            const selector = document.getElementById("imageSelector");
+            selector.innerHTML = '<option value="">Scanning local images...</option>';
+            
+            fetch('/api/list-images')
+                .then(res => res.json())
+                .then(data => {
+                    selector.innerHTML = '';
+                    if (!data.images || data.images.length === 0) {
+                        selector.innerHTML = '<option value="">No images found in Pictures/</option>';
+                        return;
+                    }
+                    
+                    data.images.forEach(img => {
+                        const opt = document.createElement("option");
+                        opt.value = img.absolute_path;
+                        opt.innerText = img.relative_path;
+                        selector.appendChild(opt);
+                    });
+                })
+                .catch(err => {
+                    selector.innerHTML = '<option value="">Error scanning local files</option>';
+                    console.error("Failed to list images: ", err);
+                });
+        }
+
+        function submitSingleImageJob() {
+            const imgPath = document.getElementById("imageSelector").value;
+            if (!imgPath) {
+                alert("Please select a target image.");
+                return;
+            }
+            
+            const numStrokes = document.getElementById("customStrokes").value.trim();
+            const numIter = document.getElementById("customIter").value.trim();
+            const feather = document.getElementById("customFeather").value;
+            const condition = document.getElementById("customCondition").value;
+            const objName = document.getElementById("customObjectName").value.trim();
+            
+            if (!numStrokes || !numIter || !objName) {
+                alert("Please fill in all form fields.");
+                return;
+            }
+            
+            const paramsString = `&image_path=${encodeURIComponent(imgPath)}` +
+                                 `&num_strokes=${encodeURIComponent(numStrokes)}` +
+                                 `&num_iter=${encodeURIComponent(numIter)}` +
+                                 `&feather_face_mask=${encodeURIComponent(feather)}` +
+                                 `&condition=${encodeURIComponent(condition)}` +
+                                 `&object_name=${encodeURIComponent(objName)}`;
+                                 
+            triggerAction('submit-single-job', paramsString);
+        }
+
+        function viewServerLog() {
+            fetch('/api/get-log')
+                .then(res => res.text())
+                .then(text => {
+                    const term = document.getElementById("terminalBody");
+                    term.innerHTML = `<span class="term-info">=== PERSISTENT WEB ACTIONS LOG ===</span>\n` + (text || "No actions logged yet.\n");
+                    term.scrollTop = term.scrollHeight;
+                })
+                .catch(err => {
+                    alert("Failed to load server log: " + err);
+                });
+        }
+
+        function clearServerLog() {
+            if (!confirm("Are you sure you want to clear the persistent web actions log file?")) return;
+            
+            fetch('/api/clear-log', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message);
+                    clearTerminal();
+                })
+                .catch(err => {
+                    alert("Failed to clear server log: " + err);
+                });
+        }
+
+        // Initialize dashboard queries on load
+        window.addEventListener('load', () => {
+            fetchQueue();
+            loadLocalImages();
+            updateCustomScriptField();
+        });
+    </script>
+</body>
+</html>
