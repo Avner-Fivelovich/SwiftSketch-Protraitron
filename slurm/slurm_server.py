@@ -376,6 +376,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
             feather_face_mask = params.get('feather_face_mask', ['3'])[0]
             condition = params.get('condition', ['depth'])[0]
             object_name = params.get('object_name', ['face'])[0]
+            suffix = params.get('suffix', [''])[0].strip()
             
             if not local_image_path:
                 self.send_sse_line("[ERROR] No target image path provided.")
@@ -389,7 +390,13 @@ class SlurmHandler(BaseHTTPRequestHandler):
                 
             basename = os.path.splitext(os.path.basename(local_image_path))[0]
             file_ext = os.path.splitext(local_image_path)[1]
-            job_name = f"ss_custom_{basename}_{num_strokes}s"
+            
+            # Clean and append suffix if provided
+            suffix_clean = re.sub(r'[^a-zA-Z0-9_\-]', '', suffix)
+            if suffix_clean:
+                job_name = f"ss_custom_{basename}_{num_strokes}s_{suffix_clean}"
+            else:
+                job_name = f"ss_custom_{basename}_{num_strokes}s"
             
             # Setup directories on cluster
             remote_images_dir = DEFAULT_REMOTE_DIR + "images"
