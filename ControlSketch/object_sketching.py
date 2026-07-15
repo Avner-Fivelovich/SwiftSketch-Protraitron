@@ -32,6 +32,7 @@ except ImportError:
 
 import os
 import sys
+import time
 import traceback
 import numpy as np
 import torch
@@ -140,15 +141,36 @@ def get_target(args):
 
 
 def main(args):
-    print("run object sketching", flush=True)
+    print("=" * 60, flush=True)
+    print("Starting SwiftSketch execution pipeline...", flush=True)
+    print("=" * 60, flush=True)
+    
+    t_start = time.time()
+    
+    # 1. Target loading
+    t_step = time.time()
     inputs, mask = get_target(args)  
+    print(f"[TIME LOG] Target image & mask loaded in {time.time() - t_step:.2f}s", flush=True)
+    
+    # 2. Renderer loading (SDXL Attention Map)
+    t_step = time.time()
     renderer = load_renderer(args, inputs, mask) 
+    print(f"[TIME LOG] SDXL DDIM Inversion & Attention Map extracted in {time.time() - t_step:.2f}s", flush=True)
+    
+    # 3. ControlSDSLoss loading (SD1.5, ControlNet, BLIP-2)
+    t_step = time.time()
     sds_loss = ControlSDSLoss(args, args.device)
+    print(f"[TIME LOG] ControlSDSLoss & BLIP-2 Captioning pipeline initialized in {time.time() - t_step:.2f}s", flush=True)
 
+    # 4. Optimization Init
+    t_step = time.time()
     optimizer = PainterOptimizer(args, renderer)
     img = renderer.init_image()  
     optimizer.init_optimizers()  
+    print(f"[TIME LOG] Optimizer initialized in {time.time() - t_step:.2f}s", flush=True)
+    
     print("Starting the optimization process", flush=True)
+    t_optim_start = time.time()
     
     epoch_range = tqdm(range(args.num_iter+1))
 
@@ -180,8 +202,11 @@ def main(args):
                             args.use_wandb, "{}/{}.jpg".format(
                 args.output_dir, "initial_points"))
 
+    t_optim_end = time.time()
+    print(f"[TIME LOG] Core Optimization loop ({args.num_iter} iterations) completed in {t_optim_end - t_optim_start:.2f}s (avg: {(t_optim_end - t_optim_start)/args.num_iter:.4f}s/iter)", flush=True)
 
-    # save final sketch
+    # 5. Post processing (Save final sketch & video)
+    t_step = time.time()
     if args.sort_final_sketch:
         utils.sort_by_contour_and_attn(renderer, args.mask, renderer.get_attn())
     if (hasattr(args, 'scale_w') or hasattr(args, 'scale_h')): 
@@ -223,10 +248,13 @@ def main(args):
             data[final_key] = svg_content
             np.savez_compressed(args.target, **data)
 
-
-
             
         print("The final SVG was saved to the input dictionary")
+
+    print(f"[TIME LOG] Post-processing & file exporting completed in {time.time() - t_step:.2f}s", flush=True)
+    print("=" * 60, flush=True)
+    print(f"Total pipeline execution time: {time.time() - t_start:.2f}s", flush=True)
+    print("=" * 60, flush=True)
 
 
 if __name__ == "__main__":
