@@ -225,11 +225,11 @@ def main(args):
         wandb.log({f"final sketch": wandb.Image(final_sketch)})
 
 
-    # save video
-    utils.make_video(args.output_dir)
-    if args.use_wandb:
-        video_path = f"{args.output_dir}/sketch.mp4"
-        wandb.log({"sketch_video": wandb.Video(video_path, format="mp4")})
+    # save video disabled (user requested no video)
+    # utils.make_video(args.output_dir)
+    # if args.use_wandb:
+    #     video_path = f"{args.output_dir}/sketch.mp4"
+    #     wandb.log({"sketch_video": wandb.Video(video_path, format="mp4")})
 
 
     if args.target_is_dict  and args.save_svg_in_dict:
