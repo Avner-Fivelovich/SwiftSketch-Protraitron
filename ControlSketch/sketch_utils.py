@@ -450,6 +450,30 @@ def sort_by_contour_and_attn(renderer, mask, attn_map):
         renderer.shape_groups= sorted_shape_groups
 
 
+def get_device_dtype(device):
+    """
+    Returns the optimal torch dtype for the given device.
+    - MPS (Apple Silicon): float32 (to avoid NaNs).
+    - CUDA with compute capability < 7.0 (Pascal like Titan Xp/GTX 1080 Ti or older): float32
+      (Pascal lacks native FP16 execution units, making FP16 emulated and extremely slow: 7s/it vs 0.5s/it).
+    - CUDA with compute capability >= 7.0 (Volta, Turing like RTX 2080 Ti, Ampere, Ada, Hopper): float16
+    - CPU: float32.
+    """
+    if "mps" in str(device):
+        return torch.float32
+    if "cuda" in str(device) or (isinstance(device, torch.device) and device.type == "cuda"):
+        try:
+            major, minor = torch.cuda.get_device_capability(device)
+            if major < 7:
+                print(f"[DTYPE OPTIMIZATION] Compute capability {major}.{minor} < 7.0 (Pascal or older). Forcing float32 to avoid emulated FP16 slowdown.", flush=True)
+                return torch.float32
+        except Exception:
+            pass
+        return torch.float16
+    return torch.float32
+
+
+
           
 
 

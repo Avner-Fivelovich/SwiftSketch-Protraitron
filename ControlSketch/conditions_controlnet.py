@@ -8,8 +8,11 @@ import cv2
 from diffusers import ControlNetModel
 
 
+import sketch_utils as utils
+
+
 def controlnet(condition, device):
-    dtype = torch.float32 if "mps" in str(device) else torch.float16
+    dtype = utils.get_device_dtype(device)
     if condition== "depth":
         controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-depth", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "hed":
@@ -26,7 +29,7 @@ def controlnet(condition, device):
 
 
 def controlnet_11(condition, device):
-    dtype = torch.float32 if "mps" in str(device) else torch.float16
+    dtype = utils.get_device_dtype(device)
     if condition== "depth":
         controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "hed":
