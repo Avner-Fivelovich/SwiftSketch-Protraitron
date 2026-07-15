@@ -687,51 +687,51 @@ class Painter(torch.nn.Module):
             boost_mode = getattr(self.args, 'feather_face_mask', 2)
             attn_h, attn_w = self.attention_map.shape[-2], self.attention_map.shape[-1]
             
-            if boost_mode in [0, 1]:
-                print(f"Skipping face boosting mask (Mode {boost_mode}: no added attention).")
-            else:
-                success = False
-                if boost_mode == 3:
-                    success = self.apply_face_edges_outline_mask(attn_h, attn_w)
-                elif boost_mode == 2:
-                    success = self.apply_face_features_boosting_mask(attn_h, attn_w)
+            success = False
+            if boost_mode == 3:
+                success = self.apply_face_edges_outline_mask(attn_h, attn_w)
+            elif boost_mode == 2:
+                success = self.apply_face_features_boosting_mask(attn_h, attn_w)
+                
+            if not success:
+                # Fallback to Haar Cascade face detector (or if boost_mode is 0 or 1)
+                try:
+                    import cv2
+                    # Convert PIL image to grayscale numpy array
+                    gray_im = np.array(self.args.input_image.convert("L"))
                     
-                if not success:
-                    # Fallback to Haar Cascade face detector
-                    try:
-                        import cv2
-                        # Convert PIL image to grayscale numpy array
-                        gray_im = np.array(self.args.input_image.convert("L"))
+                    # Load pre-trained Haar Cascade face detector
+                    cascade_path = os.path.join(cv2.__path__[0], 'data', 'haarcascade_frontalface_default.xml')
+                    face_cascade = cv2.CascadeClassifier(cascade_path)
+                    
+                    # Detect faces
+                    faces = face_cascade.detectMultiScale(gray_im, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                    
+                    if len(faces) > 0:
+                        # Use the largest detected face
+                        faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
+                        x_face, y_face, w_face, h_face = faces[0]
                         
-                        # Load pre-trained Haar Cascade face detector
-                        cascade_path = os.path.join(cv2.__path__[0], 'data', 'haarcascade_frontalface_default.xml')
-                        face_cascade = cv2.CascadeClassifier(cascade_path)
+                        # Map the face bounding box coordinates from input_image coordinates to attention_map coordinates
+                        orig_h, orig_w = gray_im.shape
                         
-                        # Detect faces
-                        faces = face_cascade.detectMultiScale(gray_im, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                        x_start = int(x_face * attn_w / orig_w)
+                        y_start = int(y_face * attn_h / orig_h)
+                        x_end = int((x_face + w_face) * attn_w / orig_w)
+                        y_end = int((y_face + h_face) * attn_h / orig_h)
                         
-                        if len(faces) > 0:
-                            # Use the largest detected face
-                            faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
-                            x_face, y_face, w_face, h_face = faces[0]
-                            
-                            # Map the face bounding box coordinates from input_image coordinates to attention_map coordinates
-                            orig_h, orig_w = gray_im.shape
-                            
-                            x_start = int(x_face * attn_w / orig_w)
-                            y_start = int(y_face * attn_h / orig_h)
-                            x_end = int((x_face + w_face) * attn_w / orig_w)
-                            y_end = int((y_face + h_face) * attn_h / orig_h)
-                            
-                            # Apply classic face boosting
-                            self.apply_classic_face_boosting(y_start, y_end, x_start, x_end)
-                            
-                            # Save masked attention map for verification
-                            save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_masked.png"))
+                        # Check flag and call face boosting method accordingly
+                        if boost_mode == 1:
+                            self.apply_feathered_face_boosting(y_start, y_end, x_start, x_end, w_face, h_face, attn_w, attn_h, orig_w, orig_h)
                         else:
-                            print("No face detected by Haar Cascade. Skipping face boosting mask.")
-                    except Exception as e:
-                        print(f"Error in face detection boosting: {e}")
+                            self.apply_classic_face_boosting(y_start, y_end, x_start, x_end)
+                        
+                        # Save masked attention map for verification
+                        save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_masked.png"))
+                    else:
+                        print("No face detected by Haar Cascade. Skipping face boosting mask.")
+                except Exception as e:
+                    print(f"Error in face detection boosting: {e}")
 
         attn_map= torch.pow(self.attention_map, 2)
         attn_map_to_plot = (attn_map * self.mask) 

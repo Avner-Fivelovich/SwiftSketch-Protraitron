@@ -623,6 +623,7 @@
                     <table id="queueTable">
                         <thead>
                             <tr>
+                                <th style="width: 40px; text-align: center;">#</th>
                                 <th>Job ID</th>
                                 <th>Partition</th>
                                 <th>Job Name</th>
@@ -635,7 +636,7 @@
                         </thead>
                         <tbody id="queueBody">
                             <tr>
-                                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
                                     Click "Refresh Queue" to query cluster status.
                                 </td>
                             </tr>
@@ -825,7 +826,7 @@
 
         function fetchQueue() {
             const tbody = document.getElementById("queueBody");
-            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Fetching squeue from cluster...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Fetching squeue from cluster...</td></tr>`;
 
             fetch('/api/squeue')
                 .then(res => res.json())
@@ -833,11 +834,11 @@
                     if (data.status === 'success') {
                         parseSqueue(data.output);
                     } else {
-                        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--error); padding: 1.5rem;">Error querying squeue: ${data.error}</td></tr>`;
+                        tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--error); padding: 1.5rem;">Error querying squeue: ${data.error}</td></tr>`;
                     }
                 })
                 .catch(err => {
-                    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--error); padding: 1.5rem;">Failed to fetch queue: ${err}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--error); padding: 1.5rem;">Failed to fetch queue: ${err}</td></tr>`;
                 });
         }
 
@@ -847,11 +848,12 @@
 
             const lines = output.trim().split("\n");
             if (lines.length <= 1) {
-                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No active jobs in the queue.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No active jobs in the queue.</td></tr>`;
                 return;
             }
 
             // Skip header line
+            let rowIndex = 1;
             for (let i = 1; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
@@ -880,6 +882,7 @@
 
                 const row = document.createElement("tr");
                 row.innerHTML = `
+                    <td style="color: var(--text-muted); font-size: 0.8rem; text-align: center; font-family: var(--font-mono);">${rowIndex++}</td>
                     <td>${jobId}</td>
                     <td>${partition}</td>
                     <td>${jobName}</td>
