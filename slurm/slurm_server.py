@@ -5,6 +5,7 @@ import urllib.parse
 import subprocess
 import socketserver
 import getpass
+import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 PORT = 8081  # Use 8081 to avoid conflict with the robot server on 8080
@@ -99,6 +100,8 @@ class SlurmHandler(BaseHTTPRequestHandler):
             self.handle_squeue()
         elif path == '/api/list-images':
             self.handle_list_images()
+        elif path == '/api/view-image':
+            self.handle_view_image(parsed_url.query)
         elif path == '/api/get-log':
             self.handle_get_log()
         elif path == '/api/run':
@@ -190,6 +193,36 @@ class SlurmHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps({"images": images}).encode('utf-8'))
+
+    def handle_view_image(self, query):
+        params = urllib.parse.parse_qs(query)
+        img_path = params.get('path', [''])[0]
+        if not img_path or not os.path.exists(img_path):
+            self.send_response(404)
+            self.end_headers()
+            return
+            
+        ext = os.path.splitext(img_path)[1].lower()
+        mime_type = "image/png"
+        if ext in [".jpg", ".jpeg"]:
+            mime_type = "image/jpeg"
+        elif ext == ".gif":
+            mime_type = "image/gif"
+        elif ext == ".svg":
+            mime_type = "image/svg+xml"
+            
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", mime_type)
+            self.end_headers()
+            with open(img_path, "rb") as f:
+                self.wfile.write(f.read())
+        except Exception as e:
+            try:
+                self.send_response(500)
+                self.end_headers()
+            except:
+                pass
 
     def handle_get_log(self):
         log_path = os.path.join(SLURM_DIR, "slurm_web.log")
