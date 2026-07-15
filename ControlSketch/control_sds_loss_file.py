@@ -9,6 +9,8 @@ from transformers import AutoProcessor, Blip2ForConditionalGeneration
 import conditions_controlnet as cc
 
 
+import sketch_utils as utils
+
 class ControlSDSLoss(nn.Module):
     def __init__(self, args, device):
         super(ControlSDSLoss, self).__init__()
@@ -16,15 +18,15 @@ class ControlSDSLoss(nn.Module):
         self.device = device
         condition= self.args.condition
         self.conditioning_scale = self.args.conditioning_scale
-        self.condition_image = self.create_condition_image(condition)
         controlnet = cc.controlnet(condition, self.device)
         self.resized_mask = []
 
         self.pipe = StableDiffusionControlNetPipeline.from_pretrained(
-            "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=torch.float16, use_safetensors=True).to(self.device)
+            "runwayml/stable-diffusion-v1-5", controlnet=controlnet, torch_dtype=utils.get_device_dtype(self.device), use_safetensors=True).to(self.device)
 
         self.alphas = self.pipe.scheduler.alphas_cumprod.to(self.device)
         self.sigmas = (1 - self.pipe.scheduler.alphas_cumprod).to(self.device)
+        self.condition_image = self.create_condition_image(condition)
 
         # creare caption
         if self.args.caption == "":
@@ -65,8 +67,8 @@ class ControlSDSLoss(nn.Module):
         )
         image = image.convert("RGB")
         image = conditioning_image_transforms(image)
-        image = image.to(dtype=torch.float16)
-        image = image.to(device=self.device, dtype=torch.float16)
+        image = image.to(dtype=self.pipe.unet.dtype)
+        image = image.to(device=self.device, dtype=self.pipe.unet.dtype)
         image = image.unsqueeze(0)
         return image
 
@@ -115,8 +117,9 @@ class ControlSDSLoss(nn.Module):
         sds_loss = 0
         # encode rendered image
         x = x * 2. - 1.
-        with torch.cuda.amp.autocast():
-            init_latent_z = (self.pipe.vae.encode(x.to(dtype=torch.float16)).latent_dist.sample())
+        use_autocast = "cuda" in str(self.device)
+        with torch.autocast(device_type="cuda" if use_autocast else "cpu", dtype=self.pipe.unet.dtype, enabled=use_autocast):
+            init_latent_z = (self.pipe.vae.encode(x.to(dtype=self.pipe.unet.dtype)).latent_dist.sample())
         latent_z = 0.18215 * init_latent_z  # scaling_factor * init_latents
 
         with torch.inference_mode():
@@ -135,7 +138,7 @@ class ControlSDSLoss(nn.Module):
             # denoise
             z_in = torch.cat([noised_latent_zt] * 2)  # expand latents for classifier free guidance
 
-            with torch.autocast(device_type="cuda", dtype=torch.float16):
+            with torch.autocast(device_type="cuda" if use_autocast else "cpu", dtype=self.pipe.unet.dtype, enabled=use_autocast):
                 down_block_res_samples, mid_block_res_sample = self.pipe.controlnet(
                     noised_latent_zt,
                     timestep,
@@ -148,10 +151,10 @@ class ControlSDSLoss(nn.Module):
                 # Infered ControlNet only for the conditional batch.
                 # To apply the output of ControlNet to both the unconditional and conditional batches,
                 # add 0 to the unconditional batch to keep it unchanged.
-                down_block_res_samples = [torch.cat([torch.zeros_like(d), d]).to(dtype=torch.float16) for d in
+                down_block_res_samples = [torch.cat([torch.zeros_like(d), d]).to(dtype=self.pipe.unet.dtype) for d in
                                           down_block_res_samples]
                 mid_block_res_sample = torch.cat([torch.zeros_like(mid_block_res_sample), mid_block_res_sample]).to(
-                    dtype=torch.float16)
+                    dtype=self.pipe.unet.dtype)
 
                 eps_t_uncond, eps_t = self.pipe.unet(
                     z_in,

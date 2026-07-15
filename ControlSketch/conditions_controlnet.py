@@ -8,35 +8,40 @@ import cv2
 from diffusers import ControlNetModel
 
 
+import sketch_utils as utils
+
+
 def controlnet(condition, device):
+    dtype = utils.get_device_dtype(device)
     if condition== "depth":
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-depth", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-depth", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "hed":
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-hed", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-hed", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "scribble":
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-scribble", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-scribble", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "seg":
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-seg", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-seg", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "canny": 
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-canny", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-canny", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "normal":
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_normalbae", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_normalbae", torch_dtype=dtype, use_safetensors=True).to(device)
     return controlnet
 
 
 def controlnet_11(condition, device):
+    dtype = utils.get_device_dtype(device)
     if condition== "depth":
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11f1p_sd15_depth", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "hed":
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_softedge", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_softedge", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "scribble":
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_scribble", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_scribble", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "seg":
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_seg", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_seg", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "canny": 
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_canny", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_canny", torch_dtype=dtype, use_safetensors=True).to(device)
     elif condition== "normal":
-        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_normalbae", torch_dtype=torch.float16, use_safetensors=True).to(device)
+        controlnet = ControlNetModel.from_pretrained("lllyasviel/control_v11p_sd15_normalbae", torch_dtype=dtype, use_safetensors=True).to(device)
     return controlnet
 
 

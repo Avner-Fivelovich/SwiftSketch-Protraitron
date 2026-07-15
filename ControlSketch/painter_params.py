@@ -3,6 +3,8 @@ import CLIP_.clip as clip
 import numpy as np
 import pydiffvg
 import torch
+import os
+import gc
 import torch.nn.functional as F
 from torchvision import transforms
 from sklearn.cluster import KMeans
@@ -206,8 +208,11 @@ class Painter(torch.nn.Module):
             beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear",
             clip_sample=False, set_alpha_to_one=False)
 
+        sdxl_dtype = utils.get_device_dtype(self.device)
+        sdxl_variant = None if sdxl_dtype == torch.float32 else "fp16"
+
         pipeline = StableDiffusionXLPipeline.from_pretrained(
-            "stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, variant="fp16",
+            "stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=sdxl_dtype, variant=sdxl_variant,
             use_safetensors=True,
             scheduler=scheduler
         ).to(self.device)
@@ -238,6 +243,7 @@ class Painter(torch.nn.Module):
         
         del latents, zts, zT, image, attn_maps, inversion_callback
         del pipeline
+        gc.collect()
         torch.cuda.empty_cache()
         return attn_map
 
@@ -431,7 +437,302 @@ class Painter(torch.nn.Module):
         return combined_points, segmented_image_
 
 
+    def apply_classic_face_boosting(self, y_start, y_end, x_start, x_end):
+        # Create face boosting mask (boost face by 3.0, reduce non-face to 0.15)
+        face_mask = torch.ones_like(self.attention_map) * 0.15
+        face_mask[y_start:y_end, x_start:x_end] = 3.0
+        
+        # Multiply attention map by the face boosting mask
+        self.attention_map = self.attention_map * face_mask
+        print("Applied classic face boosting mask!")
+
+    def apply_feathered_face_boosting(self, y_start, y_end, x_start, x_end, w_face, h_face, attn_w, attn_h, orig_w, orig_h):
+        import cv2
+        # Create a soft face boosting mask (boost face by 3.0, reduce non-face to 0.15) with feathered edges
+        binary_face_mask = np.zeros((attn_h, attn_w), dtype=np.float32)
+        binary_face_mask[y_start:y_end, x_start:x_end] = 1.0
+        
+        # Soft transition: Blur the binary mask to feather the edges
+        # Kernel size is proportional to the face bounding box size, keeping it odd
+        k_w = int(w_face * attn_w / orig_w) | 1
+        k_h = int(h_face * attn_h / orig_h) | 1
+        k_w = max(15, k_w if k_w % 2 == 1 else k_w + 1)
+        k_h = max(15, k_h if k_h % 2 == 1 else k_h + 1)
+        
+        blurred_mask = cv2.GaussianBlur(binary_face_mask, (k_w, k_h), 0)
+        
+        # Rescale from [0, 1] to [0.15, 3.0]
+        face_mask_np = 0.15 + (3.0 - 0.15) * blurred_mask
+        face_mask = torch.from_numpy(face_mask_np).to(self.attention_map.device, dtype=self.attention_map.dtype)
+        
+        # Multiply attention map by the feathered face boosting mask
+        self.attention_map = self.attention_map * face_mask
+        print("Applied feathered face boosting mask!")
+
+    def apply_face_features_boosting_mask(self, attn_h, attn_w):
+        import cv2
+        import mediapipe as mp
+        from mediapipe.tasks import python
+        from mediapipe.tasks.python import vision
+        from torchvision.utils import save_image
+        
+        try:
+            # 1. Convert input PIL image to numpy array (RGB)
+            image_np = np.array(self.args.input_image.convert("RGB"))
+            h, w, _ = image_np.shape
+            
+            # 2. Run MediaPipe FaceLandmarker
+            base_options = python.BaseOptions(model_asset_path='face_landmarker.task')
+            options = vision.FaceLandmarkerOptions(
+                base_options=base_options,
+                num_faces=1
+            )
+            
+            with vision.FaceLandmarker.create_from_options(options) as landmarker:
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_np)
+                detection_result = landmarker.detect(mp_image)
+                
+                if not detection_result.face_landmarks:
+                    print("No face detected by MediaPipe. Skipping detailed face features boosting.")
+                    return False
+                
+                landmarks = detection_result.face_landmarks[0]
+                pts = np.array([(int(p.x * w), int(p.y * h)) for p in landmarks])
+                
+                pts_attn = np.zeros_like(pts)
+                pts_attn[:, 0] = (pts[:, 0] * attn_w / w).astype(np.int32)
+                pts_attn[:, 1] = (pts[:, 1] * attn_h / h).astype(np.int32)
+                
+                # 3. Define facial feature index groups
+                FACE_OVAL_IDX = [
+                    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
+                    397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
+                    172,  58, 132,  93, 234, 127, 162,  21,  54, 103,  67, 109
+                ]
+                LEFT_EYE_IDX = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
+                RIGHT_EYE_IDX = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+                LEFT_BROW_IDX = [276, 283, 282, 295, 285, 300, 293, 334, 296, 336]
+                RIGHT_BROW_IDX = [46, 53, 52, 65, 55, 70, 63, 105, 66, 107]
+                LIPS_IDX = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95, 185]
+                NOSE_IDX = [168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 98, 97, 326, 327]
+                
+                # 4. Create separate numpy layers for the multi-step mask
+                body_mask = self.mask.cpu().numpy().astype(np.float32)
+                body_mask = cv2.resize(body_mask, (attn_w, attn_h), interpolation=cv2.INTER_LINEAR)
+                
+                # Get the chin level y-coordinate (index 152 is the bottom of the chin) plus 10 pixels
+                y_chin = pts_attn[152, 1]
+                y_chin_limit = int(y_chin + 10)
+                
+                # Combined face + hair mask: use the silhouette (body_mask) from the very top of the head
+                # down to the chin level location (+10 px)
+                face_oval_mask = np.zeros((attn_h, attn_w), dtype=np.float32)
+                face_oval_mask[:y_chin_limit, :] = body_mask[:y_chin_limit, :]
+                
+                detail_mask = np.zeros((attn_h, attn_w), dtype=np.float32)
+                cv2.fillPoly(detail_mask, [pts_attn[LEFT_EYE_IDX]], 1.0)
+                cv2.fillPoly(detail_mask, [pts_attn[RIGHT_EYE_IDX]], 1.0)
+                cv2.fillPoly(detail_mask, [pts_attn[LEFT_BROW_IDX]], 1.0)
+                cv2.fillPoly(detail_mask, [pts_attn[RIGHT_BROW_IDX]], 1.0)
+                cv2.fillPoly(detail_mask, [pts_attn[LIPS_IDX]], 1.0)
+                
+                # Nose bridge lines
+                nose_pts = pts_attn[NOSE_IDX]
+                for idx in range(len(nose_pts) - 1):
+                    cv2.line(detail_mask, tuple(nose_pts[idx]), tuple(nose_pts[idx+1]), 1.0, thickness=2)
+                
+                # 5. Smooth layers to prevent hard line artifacts
+                k_size = int(max(attn_w, attn_h) * 0.05) | 1
+                body_mask = cv2.GaussianBlur(body_mask, (k_size, k_size), 0)
+                face_oval_mask = cv2.GaussianBlur(face_oval_mask, (k_size, k_size), 0)
+                detail_mask = cv2.GaussianBlur(detail_mask, (5, 5), 0)
+                
+                # 6. Compose the multi-step boosting weights
+                w_bg = 0.15
+                w_body = 0.5
+                w_face = 1.5
+                w_details = 4.0
+                
+                composed_mask = np.full((attn_h, attn_w), w_bg, dtype=np.float32)
+                composed_mask = np.maximum(composed_mask, w_body * body_mask)
+                composed_mask = np.maximum(composed_mask, w_face * face_oval_mask)
+                composed_mask = np.maximum(composed_mask, w_details * detail_mask)
+                
+                # Convert to tensor and apply
+                face_mask = torch.from_numpy(composed_mask).to(self.attention_map.device, dtype=self.attention_map.dtype)
+                self.attention_map = self.attention_map * face_mask
+                print("Applied multi-step face features boosting mask using MediaPipe FaceLandmarker!")
+                
+                # Save masked attention map for verification
+                save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_masked.png"))
+                # Save the face boosting mask in isolation for verification
+                save_image(face_mask / (face_mask.max() + 1e-8), os.path.join(self.args.output_dir, "face_mask.png"))
+                return True
+        except Exception as e:
+            print(f"Error in multi-step face features boosting: {e}")
+            return False
+
+    def apply_face_edges_outline_mask(self, attn_h, attn_w):
+        import cv2
+        import mediapipe as mp
+        from mediapipe.tasks import python
+        from mediapipe.tasks.python import vision
+        from torchvision.utils import save_image
+        
+        try:
+            # 1. Convert input PIL image to numpy array (RGB)
+            image_np = np.array(self.args.input_image.convert("RGB"))
+            h, w, _ = image_np.shape
+            
+            # 2. Run MediaPipe FaceLandmarker
+            base_options = python.BaseOptions(model_asset_path='face_landmarker.task')
+            options = vision.FaceLandmarkerOptions(
+                base_options=base_options,
+                num_faces=1
+            )
+            
+            with vision.FaceLandmarker.create_from_options(options) as landmarker:
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_np)
+                detection_result = landmarker.detect(mp_image)
+                
+                if not detection_result.face_landmarks:
+                    print("No face detected by MediaPipe. Skipping detailed face edges outline.")
+                    return False
+                
+                landmarks = detection_result.face_landmarks[0]
+                pts = np.array([(int(p.x * w), int(p.y * h)) for p in landmarks])
+                
+                pts_attn = np.zeros_like(pts)
+                pts_attn[:, 0] = (pts[:, 0] * attn_w / w).astype(np.int32)
+                pts_attn[:, 1] = (pts[:, 1] * attn_h / h).astype(np.int32)
+                
+                # Get the chin level y-coordinate (index 152 is the bottom of the chin) plus 10 pixels
+                y_chin = pts_attn[152, 1]
+                y_chin_limit = int(y_chin + 10)
+                
+                # Get the body mask (silhouette)
+                body_mask = self.mask.cpu().numpy().astype(np.float32)
+                body_mask = cv2.resize(body_mask, (attn_w, attn_h), interpolation=cv2.INTER_LINEAR)
+                
+                # Create a head segment (silhouette from top of head down to chin level)
+                head_segment = np.zeros((attn_h, attn_w), dtype=np.float32)
+                head_segment[:y_chin_limit, :] = body_mask[:y_chin_limit, :]
+                
+                # Extract the outline contour of the head segment (hair + cheeks + chin level cut)
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+                dilated = cv2.dilate(head_segment, kernel, iterations=1)
+                eroded = cv2.erode(head_segment, kernel, iterations=1)
+                face_edges = dilated - eroded
+                
+                # Define facial feature index groups for details outline
+                LEFT_BROW_IDX = [276, 283, 282, 295, 285, 300, 293, 334, 296, 336]
+                RIGHT_BROW_IDX = [46, 53, 52, 65, 55, 70, 63, 105, 66, 107]
+                LEFT_EYE_IDX = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
+                RIGHT_EYE_IDX = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+                LIPS_IDX = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95, 185]
+                NOSE_IDX = [168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 98, 97, 326, 327]
+                
+                # Draw facial features as outline lines on face_edges
+                cv2.polylines(face_edges, [pts_attn[LEFT_BROW_IDX]], isClosed=False, color=1.0, thickness=2)
+                cv2.polylines(face_edges, [pts_attn[RIGHT_BROW_IDX]], isClosed=False, color=1.0, thickness=2)
+                cv2.polylines(face_edges, [pts_attn[LEFT_EYE_IDX]], isClosed=True, color=1.0, thickness=2)
+                cv2.polylines(face_edges, [pts_attn[RIGHT_EYE_IDX]], isClosed=True, color=1.0, thickness=2)
+                cv2.polylines(face_edges, [pts_attn[LIPS_IDX]], isClosed=True, color=1.0, thickness=2)
+                
+                nose_pts = pts_attn[NOSE_IDX]
+                for idx in range(len(nose_pts) - 1):
+                    cv2.line(face_edges, tuple(nose_pts[idx]), tuple(nose_pts[idx+1]), 1.0, thickness=2)
+                
+                # Smooth the edges mask to create a soft outline gradient
+                face_edges_blurred = cv2.GaussianBlur(face_edges, (15, 15), 0)
+                
+                # Scale mask to [w_bg, 1.0] where w_bg = 0.15 is the background
+                w_bg = 0.15
+                composed_mask = w_bg + (1.0 - w_bg) * face_edges_blurred
+                
+                # Convert to tensor and apply
+                face_mask = torch.from_numpy(composed_mask).to(self.attention_map.device, dtype=self.attention_map.dtype)
+                self.attention_map = self.attention_map * face_mask
+                print("Applied face features outline mask (Mode 3) using MediaPipe FaceLandmarker and silhouette!")
+                
+                # Save visual results
+                save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_masked.png"))
+                save_image(face_mask / (face_mask.max() + 1e-8), os.path.join(self.args.output_dir, "face_mask.png"))
+                return True
+        except Exception as e:
+            print(f"Error in face features outline mask: {e}")
+            return False
+
     def set_attention_threshold_map(self):
+        if self.attention_map is not None:
+            self.attention_map = torch.nan_to_num(self.attention_map, nan=0.0)
+            
+            # Print attention map statistics
+            print("\n=== Attention Map Statistics ===")
+            print(f"Min value: {self.attention_map.min().item():.6f}")
+            print(f"Max value: {self.attention_map.max().item():.6f}")
+            print(f"Mean value: {self.attention_map.mean().item():.6f}")
+            print(f"Std dev: {self.attention_map.std().item():.6f}")
+            
+            # Save raw attention map to disk as numpy array and image
+            os.makedirs(self.args.output_dir, exist_ok=True)
+            np.save(os.path.join(self.args.output_dir, "attention_map_raw.npy"), self.attention_map.numpy())
+            
+            # Save as grayscale PNG for visualization
+            from torchvision.utils import save_image
+            save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_raw.png"))
+            print(f"Saved attention_map_raw.npy and attention_map_raw.png to {self.args.output_dir}\n")
+
+            # Route to face boosting mask methods based on the feather_face_mask flag
+            boost_mode = getattr(self.args, 'feather_face_mask', 2)
+            attn_h, attn_w = self.attention_map.shape[-2], self.attention_map.shape[-1]
+            
+            success = False
+            if boost_mode == 3:
+                success = self.apply_face_edges_outline_mask(attn_h, attn_w)
+            elif boost_mode == 2:
+                success = self.apply_face_features_boosting_mask(attn_h, attn_w)
+                
+            if not success:
+                # Fallback to Haar Cascade face detector (or if boost_mode is 0 or 1)
+                try:
+                    import cv2
+                    # Convert PIL image to grayscale numpy array
+                    gray_im = np.array(self.args.input_image.convert("L"))
+                    
+                    # Load pre-trained Haar Cascade face detector
+                    cascade_path = os.path.join(cv2.__path__[0], 'data', 'haarcascade_frontalface_default.xml')
+                    face_cascade = cv2.CascadeClassifier(cascade_path)
+                    
+                    # Detect faces
+                    faces = face_cascade.detectMultiScale(gray_im, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+                    
+                    if len(faces) > 0:
+                        # Use the largest detected face
+                        faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
+                        x_face, y_face, w_face, h_face = faces[0]
+                        
+                        # Map the face bounding box coordinates from input_image coordinates to attention_map coordinates
+                        orig_h, orig_w = gray_im.shape
+                        
+                        x_start = int(x_face * attn_w / orig_w)
+                        y_start = int(y_face * attn_h / orig_h)
+                        x_end = int((x_face + w_face) * attn_w / orig_w)
+                        y_end = int((y_face + h_face) * attn_h / orig_h)
+                        
+                        # Check flag and call face boosting method accordingly
+                        if boost_mode == 1:
+                            self.apply_feathered_face_boosting(y_start, y_end, x_start, x_end, w_face, h_face, attn_w, attn_h, orig_w, orig_h)
+                        else:
+                            self.apply_classic_face_boosting(y_start, y_end, x_start, x_end)
+                        
+                        # Save masked attention map for verification
+                        save_image(self.attention_map / (self.attention_map.max() + 1e-8), os.path.join(self.args.output_dir, "attention_map_masked.png"))
+                    else:
+                        print("No face detected by Haar Cascade. Skipping face boosting mask.")
+                except Exception as e:
+                    print(f"Error in face detection boosting: {e}")
+
         attn_map= torch.pow(self.attention_map, 2)
         attn_map_to_plot = (attn_map * self.mask) 
         weights = attn_map.numpy().astype(np.float32)
