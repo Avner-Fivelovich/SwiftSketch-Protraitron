@@ -341,7 +341,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
             
             # Exclusions list
             exclusions = [
-                ".git/", "data/", "outputs/", "**/__pycache__/", 
+                ".git", ".git/", "data/", "outputs/", "**/__pycache__/", 
                 "*.tflite", "*.task", "*.png", "*.jpg", "*.jpeg", "*.JPG", "*.JPEG", "*.PNG",
                 "diffvg/", "build/", "dist/", ".DS_Store", "scratch/"
             ]
