@@ -13,7 +13,7 @@ active_process = None
 # Automatically resolve paths relative to script location
 SLURM_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_LOCAL_DIR = os.path.dirname(SLURM_DIR) + "/"
-DEFAULT_REMOTE_DIR = "/vol/joberant_nobck/data/NLP_368307701_2526a/avnerf/SwiftSketch-Protraitron/"
+DEFAULT_REMOTE_DIR = "/vol/joberant_nobck/data/NLP_368307701_2526a/avnerf/"
 PASSWORD_FILE = os.path.expanduser("~/.ssh/.tau_password")
 CLUSTER_USER = "avnerf"
 CLUSTER_HOST = "slurm-client.cs.tau.ac.il"
@@ -26,6 +26,56 @@ def get_password():
         except Exception as e:
             print(f"[WARNING] Failed to read password file: {e}")
     return None
+
+def log_to_file(text):
+    log_path = os.path.join(SLURM_DIR, "slurm_web.log")
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(text + "\n")
+    except Exception as e:
+        print(f"[WARNING] Failed to write log: {e}")
+
+def generate_custom_slurm(job_name, remote_image_path, num_strokes, num_iter, feather_face_mask, condition, object_name, remote_project_dir):
+    return f"""#!/bin/bash
+#SBATCH --job-name={job_name}
+#SBATCH --output={remote_project_dir}/outputs/logs/{job_name}_%j.out
+#SBATCH --error={remote_project_dir}/outputs/logs/{job_name}_%j.err
+#SBATCH --partition=studentkillable
+#SBATCH --account=gpu-students
+#SBATCH --time=1440
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32000
+#SBATCH --gpus=1
+
+# 1. Activate environment
+source ~/.bashrc
+if ! command -v conda &> /dev/null; then
+    source /vol/joberant_nobck/data/NLP_368307701_2526a/$USER/anaconda3/bin/activate
+fi
+
+export HF_HOME="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/huggingface_cache"
+export CLIP_CACHE_DIR="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/clip_cache"
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+conda activate swiftsketch_env
+
+# 2. Ensure log directory exists and navigate to project
+mkdir -p {remote_project_dir}/outputs/logs
+cd {remote_project_dir}
+
+# 3. Run Object Sketching
+python ControlSketch/object_sketching.py \\
+  --target "{remote_image_path}" \\
+  --num_strokes {num_strokes} \\
+  --num_iter {num_iter} \\
+  --feather_face_mask {feather_face_mask} \\
+  --output_dir "{remote_project_dir}/outputs/{job_name}_run" \\
+  --wandb_name "{job_name}" \\
+  --condition "{condition}" \\
+  --object_name "{object_name}"
+"""
 
 class ThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     """
@@ -47,6 +97,10 @@ class SlurmHandler(BaseHTTPRequestHandler):
             self.serve_html()
         elif path == '/api/squeue':
             self.handle_squeue()
+        elif path == '/api/list-images':
+            self.handle_list_images()
+        elif path == '/api/get-log':
+            self.handle_get_log()
         elif path == '/api/run':
             self.handle_run_stream(parsed_url.query)
         else:
@@ -60,6 +114,8 @@ class SlurmHandler(BaseHTTPRequestHandler):
             self.handle_abort()
         elif path == '/api/scancel':
             self.handle_scancel(parsed_url.query)
+        elif path == '/api/clear-log':
+            self.handle_clear_log()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -116,6 +172,55 @@ class SlurmHandler(BaseHTTPRequestHandler):
         else:
             self.wfile.write(json.dumps({"status": "error", "error": stderr}).encode('utf-8'))
 
+    def handle_list_images(self):
+        pictures_dir = os.path.join(DEFAULT_LOCAL_DIR, "Pictures")
+        images = []
+        if os.path.exists(pictures_dir):
+            for root, _, files in os.walk(pictures_dir):
+                for file in files:
+                    if file.lower().endswith(('.png', '.jpg', '.jpeg', '.jpg_large')):
+                        abs_path = os.path.join(root, file)
+                        rel_path = os.path.relpath(abs_path, DEFAULT_LOCAL_DIR)
+                        images.append({
+                            "name": file,
+                            "relative_path": rel_path,
+                            "absolute_path": abs_path
+                        })
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({"images": images}).encode('utf-8'))
+
+    def handle_get_log(self):
+        log_path = os.path.join(SLURM_DIR, "slurm_web.log")
+        content = ""
+        if os.path.exists(log_path):
+            try:
+                with open(log_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except Exception as e:
+                content = f"Error reading log file: {e}"
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain; charset=utf-8')
+        self.end_headers()
+        self.wfile.write(content.encode('utf-8'))
+
+    def handle_clear_log(self):
+        log_path = os.path.join(SLURM_DIR, "slurm_web.log")
+        try:
+            if os.path.exists(log_path):
+                os.remove(log_path)
+            message = "Log file cleared successfully."
+            status = "success"
+        except Exception as e:
+            message = f"Error clearing log file: {e}"
+            status = "error"
+            
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({"status": status, "message": message}).encode('utf-8'))
+
     def handle_scancel(self, query_string):
         params = urllib.parse.parse_qs(query_string)
         job_id = params.get('job_id', [''])[0]
@@ -137,6 +242,31 @@ class SlurmHandler(BaseHTTPRequestHandler):
         else:
             self.wfile.write(json.dumps({"status": "error", "error": stderr}).encode('utf-8'))
 
+    def run_stream_process(self, args, env, start_msg):
+        global active_process
+        self.send_sse_line(start_msg)
+        try:
+            active_process = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+                bufsize=1
+            )
+            
+            # Read stdout line-by-line in real-time
+            for line in active_process.stdout:
+                self.send_sse_line(line.rstrip('\r\n'))
+                
+            active_process.wait()
+            return active_process.returncode
+        except Exception as e:
+            self.send_sse_line(f"[ERROR] Process failed to execute: {e}")
+            return -1
+        finally:
+            active_process = None
+
     def handle_run_stream(self, query_string):
         global active_process
         
@@ -156,12 +286,10 @@ class SlurmHandler(BaseHTTPRequestHandler):
         if password:
             env["SSHPASS"] = password
 
-        # Determine target process command arguments
-        args = []
         if action == "sync-code":
             # Push code excluding datasets and heavy objects
             src = DEFAULT_LOCAL_DIR
-            dest = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}"
+            dest = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/"
             
             # Exclusions list
             exclusions = [
@@ -182,12 +310,13 @@ class SlurmHandler(BaseHTTPRequestHandler):
             else:
                 args = rsync_cmd
                 
-            self.send_sse_line(f"[LOCAL] Syncing Code: Local [{src}] ---> Cluster [{dest}]")
+            code = self.run_stream_process(args, env, f"[LOCAL] Syncing Code: Local [{src}] ---> Cluster [{dest}]")
+            self.send_sse_finished(code)
 
         elif action == "sync-data":
             # Push local dataset folder
             src = os.path.join(DEFAULT_LOCAL_DIR, "ControlSketch/data/")
-            dest = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}ControlSketch/data/"
+            dest = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ControlSketch/data/"
             
             rsync_cmd = [
                 "rsync", "-avz", "--progress",
@@ -199,11 +328,12 @@ class SlurmHandler(BaseHTTPRequestHandler):
             else:
                 args = rsync_cmd
                 
-            self.send_sse_line(f"[LOCAL] Syncing Datasets: Local [{src}] ---> Cluster [{dest}]")
+            code = self.run_stream_process(args, env, f"[LOCAL] Syncing Datasets: Local [{src}] ---> Cluster [{dest}]")
+            self.send_sse_finished(code)
 
         elif action == "sync-pull":
             # Pull cluster outputs to local outputs
-            src = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}outputs/"
+            src = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/outputs/"
             dest = os.path.join(DEFAULT_LOCAL_DIR, "outputs/")
             
             rsync_cmd = [
@@ -216,7 +346,8 @@ class SlurmHandler(BaseHTTPRequestHandler):
             else:
                 args = rsync_cmd
                 
-            self.send_sse_line(f"[LOCAL] Syncing Results: Cluster [{src}] ---> Local [{dest}]")
+            code = self.run_stream_process(args, env, f"[LOCAL] Syncing Results: Cluster [{src}] ---> Local [{dest}]")
+            self.send_sse_finished(code)
 
         elif action == "remote-cmd":
             if not custom_cmd:
@@ -224,7 +355,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
                 self.send_sse_finished(-1)
                 return
                 
-            full_command = f"cd {DEFAULT_REMOTE_DIR} && {custom_cmd}"
+            full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
                 f"{CLUSTER_USER}@{CLUSTER_HOST}",
@@ -235,37 +366,144 @@ class SlurmHandler(BaseHTTPRequestHandler):
             else:
                 args = ssh_cmd
                 
-            self.send_sse_line(f"[CLUSTER] Executing: {custom_cmd}")
+            code = self.run_stream_process(args, env, f"[CLUSTER] Executing: {custom_cmd}")
+            self.send_sse_finished(code)
+
+        elif action == "submit-single-job":
+            local_image_path = params.get('image_path', [''])[0]
+            num_strokes = params.get('num_strokes', ['98'])[0]
+            num_iter = params.get('num_iter', ['1200'])[0]
+            feather_face_mask = params.get('feather_face_mask', ['3'])[0]
+            condition = params.get('condition', ['depth'])[0]
+            object_name = params.get('object_name', ['face'])[0]
+            
+            if not local_image_path:
+                self.send_sse_line("[ERROR] No target image path provided.")
+                self.send_sse_finished(-1)
+                return
+                
+            if not os.path.exists(local_image_path):
+                self.send_sse_line(f"[ERROR] Local target image not found at path: {local_image_path}")
+                self.send_sse_finished(-1)
+                return
+                
+            basename = os.path.splitext(os.path.basename(local_image_path))[0]
+            file_ext = os.path.splitext(local_image_path)[1]
+            job_name = f"ss_custom_{basename}_{num_strokes}s"
+            
+            # Setup directories on cluster
+            remote_images_dir = DEFAULT_REMOTE_DIR + "images"
+            remote_jobs_dir = DEFAULT_REMOTE_DIR + "slurm_jobs"
+            remote_project_dir = DEFAULT_REMOTE_DIR + "SwiftSketch-Protraitron"
+            
+            remote_image_path = f"{remote_images_dir}/{basename}{file_ext}"
+            remote_slurm_path = f"{remote_jobs_dir}/{job_name}.slurm"
+            
+            # Step 1: Create remote dirs
+            mkdir_cmd = f"mkdir -p {remote_images_dir} {remote_jobs_dir}"
+            ssh_mkdir = [
+                "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                f"{CLUSTER_USER}@{CLUSTER_HOST}",
+                mkdir_cmd
+            ]
+            if password:
+                args = ["sshpass", "-e"] + ssh_mkdir
+            else:
+                args = ssh_mkdir
+                
+            code = self.run_stream_process(args, env, f"[LOCAL] Creating remote directories on cluster: {remote_images_dir}, {remote_jobs_dir}")
+            if code != 0:
+                self.send_sse_line(f"[ERROR] Failed to create directories. Exit code: {code}")
+                self.send_sse_finished(code)
+                return
+                
+            # Step 2: Upload image
+            rsync_img = [
+                "rsync", "-avz", "--progress",
+                "-e", "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+                local_image_path,
+                f"{CLUSTER_USER}@{CLUSTER_HOST}:{remote_images_dir}/"
+            ]
+            if password:
+                args = ["sshpass", "-e"] + rsync_img
+            else:
+                args = rsync_img
+                
+            code = self.run_stream_process(args, env, f"[LOCAL] Uploading target image to cluster: {local_image_path} ---> {remote_image_path}")
+            if code != 0:
+                self.send_sse_line(f"[ERROR] Failed to upload image. Exit code: {code}")
+                self.send_sse_finished(code)
+                return
+                
+            # Step 3: Generate local slurm script
+            local_jobs_dir = os.path.join(SLURM_DIR, "jobs")
+            os.makedirs(local_jobs_dir, exist_ok=True)
+            local_slurm_path = os.path.join(local_jobs_dir, f"{job_name}.slurm")
+            
+            self.send_sse_line(f"[LOCAL] Generating custom SLURM script: {local_slurm_path}")
+            try:
+                slurm_content = generate_custom_slurm(
+                    job_name=job_name,
+                    remote_image_path=remote_image_path,
+                    num_strokes=num_strokes,
+                    num_iter=num_iter,
+                    feather_face_mask=feather_face_mask,
+                    condition=condition,
+                    object_name=object_name,
+                    remote_project_dir=remote_project_dir
+                )
+                with open(local_slurm_path, "w", encoding="utf-8") as f:
+                    f.write(slurm_content)
+            except Exception as e:
+                self.send_sse_line(f"[ERROR] Failed to write local SLURM script: {e}")
+                self.send_sse_finished(-1)
+                return
+                
+            # Step 4: Upload slurm script
+            rsync_slurm = [
+                "rsync", "-avz", "--progress",
+                "-e", "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
+                local_slurm_path,
+                f"{CLUSTER_USER}@{CLUSTER_HOST}:{remote_jobs_dir}/"
+            ]
+            if password:
+                args = ["sshpass", "-e"] + rsync_slurm
+            else:
+                args = rsync_slurm
+                
+            code = self.run_stream_process(args, env, f"[LOCAL] Uploading SLURM script: {local_slurm_path} ---> {remote_slurm_path}")
+            if code != 0:
+                self.send_sse_line(f"[ERROR] Failed to upload script. Exit code: {code}")
+                self.send_sse_finished(code)
+                return
+                
+            # Step 5: Submit job
+            sbatch_cmd = f"sbatch {remote_slurm_path}"
+            ssh_sbatch = [
+                "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                f"{CLUSTER_USER}@{CLUSTER_HOST}",
+                sbatch_cmd
+            ]
+            if password:
+                args = ["sshpass", "-e"] + ssh_sbatch
+            else:
+                args = ssh_sbatch
+                
+            code = self.run_stream_process(args, env, f"[CLUSTER] Submitting Slurm Job: {sbatch_cmd}")
+            if code != 0:
+                self.send_sse_line(f"[ERROR] Failed to submit Slurm Job. Exit code: {code}")
+                self.send_sse_finished(code)
+                return
+                
+            self.send_sse_line(f"[SUCCESS] Job {job_name} successfully submitted to Slurm cluster queue.")
+            self.send_sse_finished(0)
             
         else:
             self.send_sse_line(f"[ERROR] Unknown sync or execution action: {action}")
             self.send_sse_finished(-1)
-            return
-
-        try:
-            active_process = subprocess.Popen(
-                args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=env,
-                bufsize=1
-            )
-            
-            # Read stdout line-by-line in real-time
-            for line in active_process.stdout:
-                self.send_sse_line(line.rstrip('\r\n'))
-                
-            active_process.wait()
-            code = active_process.returncode
-            self.send_sse_finished(code)
-        except Exception as e:
-            self.send_sse_line(f"[ERROR] Subprocess error: {e}")
-            self.send_sse_finished(-1)
-        finally:
-            active_process = None
 
     def send_sse_line(self, text):
+        log_to_file(text)
         try:
             self.wfile.write(f"data: {text}\n\n".encode('utf-8'))
             self.wfile.flush()

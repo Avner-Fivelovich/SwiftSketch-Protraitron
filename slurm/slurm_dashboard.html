@@ -442,6 +442,60 @@
                 </div>
             </div>
 
+            <!-- Custom Image Job Builder Card -->
+            <div class="glass-card">
+                <h2>Single Image Job Builder</h2>
+                
+                <!-- Target Image dynamic selector -->
+                <div class="form-group">
+                    <label>Select Target Image</label>
+                    <select id="imageSelector">
+                        <option value="">Scanned images loading...</option>
+                    </select>
+                    <div class="input-helper">Scanned recursively from local <code>Pictures/</code>.</div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <div class="form-group">
+                        <label>Strokes</label>
+                        <input type="text" id="customStrokes" value="98">
+                    </div>
+                    <div class="form-group">
+                        <label>Iterations</label>
+                        <input type="text" id="customIter" value="1200">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Feather Mask Mode</label>
+                    <select id="customFeather">
+                        <option value="3">Face Mask (Mode 3)</option>
+                        <option value="0">Disabled (Mode 0)</option>
+                        <option value="1">Mode 1</option>
+                        <option value="2">Mode 2</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Conditioning Mode</label>
+                    <select id="customCondition">
+                        <option value="depth">Depth (ControlNet)</option>
+                        <option value="edges">Edges (ControlNet)</option>
+                        <option value="canny">Canny</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Object Attention Name</label>
+                    <input type="text" id="customObjectName" value="face">
+                </div>
+
+                <button class="btn btn-primary" onclick="submitSingleImageJob()" style="width: 100%;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    Upload & Submit Job
+                </button>
+            </div>
+
             <!-- Launcher Card -->
             <div class="glass-card">
                 <h2>Job Orchestration</h2>
@@ -537,8 +591,14 @@
                         <button class="btn btn-danger" id="btnAbort" onclick="abortExecution()" style="display: none; padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
                             Stop Command
                         </button>
+                        <button class="btn" onclick="viewServerLog()" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
+                            View Web Log
+                        </button>
+                        <button class="btn" onclick="clearServerLog()" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
+                            Clear Web Log
+                        </button>
                         <button class="btn" onclick="clearTerminal()" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; border-radius: 4px;">
-                            Clear
+                            Clear Console
                         </button>
                     </div>
                 </div>
@@ -593,21 +653,17 @@
             }
         }
 
-        function triggerAction(actionName, optionalCmd = "") {
+        function triggerAction(actionName, optionalParamsString = "") {
             if (eventSource) {
                 alert("A process is already running. Abort it first if necessary.");
                 return;
             }
 
-            setStatus('busy', 'SYNCING');
+            setStatus('busy', 'EXECUTING');
             const term = document.getElementById("terminalBody");
             term.innerHTML = `<span class="term-info">Initializing sync or execution event stream...</span>\n`;
 
-            let url = `/api/run?action=${actionName}`;
-            if (optionalCmd) {
-                url += `&cmd=${encodeURIComponent(optionalCmd)}`;
-            }
-
+            let url = `/api/run?action=${actionName}${optionalParamsString}`;
             eventSource = new EventSource(url);
 
             eventSource.onmessage = function(event) {
@@ -683,7 +739,7 @@
                 cmd = `sbatch ${selector.value}`;
             }
 
-            triggerAction('remote-cmd', cmd);
+            triggerAction('remote-cmd', `&cmd=${encodeURIComponent(cmd)}`);
         }
 
         function streamLogFile() {
@@ -693,7 +749,7 @@
                 return;
             }
             
-            triggerAction('remote-cmd', `tail -n 100 -f ${logPath}`);
+            triggerAction('remote-cmd', `&cmd=${encodeURIComponent('tail -n 100 -f ' + logPath)}`);
         }
 
         function fetchQueue() {
@@ -788,9 +844,91 @@
                 });
         }
 
-        // Initialize queue query on load
+        function loadLocalImages() {
+            const selector = document.getElementById("imageSelector");
+            selector.innerHTML = '<option value="">Scanning local images...</option>';
+            
+            fetch('/api/list-images')
+                .then(res => res.json())
+                .then(data => {
+                    selector.innerHTML = '';
+                    if (!data.images || data.images.length === 0) {
+                        selector.innerHTML = '<option value="">No images found in Pictures/</option>';
+                        return;
+                    }
+                    
+                    data.images.forEach(img => {
+                        const opt = document.createElement("option");
+                        opt.value = img.absolute_path;
+                        opt.innerText = img.relative_path;
+                        selector.appendChild(opt);
+                    });
+                })
+                .catch(err => {
+                    selector.innerHTML = '<option value="">Error scanning local files</option>';
+                    console.error("Failed to list images: ", err);
+                });
+        }
+
+        function submitSingleImageJob() {
+            const imgPath = document.getElementById("imageSelector").value;
+            if (!imgPath) {
+                alert("Please select a target image.");
+                return;
+            }
+            
+            const numStrokes = document.getElementById("customStrokes").value.trim();
+            const numIter = document.getElementById("customIter").value.trim();
+            const feather = document.getElementById("customFeather").value;
+            const condition = document.getElementById("customCondition").value;
+            const objName = document.getElementById("customObjectName").value.trim();
+            
+            if (!numStrokes || !numIter || !objName) {
+                alert("Please fill in all form fields.");
+                return;
+            }
+            
+            const paramsString = `&image_path=${encodeURIComponent(imgPath)}` +
+                                 `&num_strokes=${encodeURIComponent(numStrokes)}` +
+                                 `&num_iter=${encodeURIComponent(numIter)}` +
+                                 `&feather_face_mask=${encodeURIComponent(feather)}` +
+                                 `&condition=${encodeURIComponent(condition)}` +
+                                 `&object_name=${encodeURIComponent(objName)}`;
+                                 
+            triggerAction('submit-single-job', paramsString);
+        }
+
+        function viewServerLog() {
+            fetch('/api/get-log')
+                .then(res => res.text())
+                .then(text => {
+                    const term = document.getElementById("terminalBody");
+                    term.innerHTML = `<span class="term-info">=== PERSISTENT WEB ACTIONS LOG ===</span>\n` + (text || "No actions logged yet.\n");
+                    term.scrollTop = term.scrollHeight;
+                })
+                .catch(err => {
+                    alert("Failed to load server log: " + err);
+                });
+        }
+
+        function clearServerLog() {
+            if (!confirm("Are you sure you want to clear the persistent web actions log file?")) return;
+            
+            fetch('/api/clear-log', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    alert(data.message);
+                    clearTerminal();
+                })
+                .catch(err => {
+                    alert("Failed to clear server log: " + err);
+                });
+        }
+
+        // Initialize dashboard queries on load
         window.addEventListener('load', () => {
             fetchQueue();
+            loadLocalImages();
             updateCustomScriptField();
         });
     </script>
