@@ -36,7 +36,14 @@ def log_to_file(text):
     except Exception as e:
         print(f"[WARNING] Failed to write log: {e}")
 
-def generate_custom_slurm(job_name, remote_image_path, num_strokes, num_iter, feather_face_mask, condition, object_name, remote_project_dir):
+def generate_custom_slurm(job_name, remote_image_path, num_strokes, num_iter, feather_face_mask, condition, object_name, remote_project_dir, caption=""):
+    caption_arg = ""
+    if caption:
+        caption_arg = f"  --caption \"{caption}\" \\\\\n"
+        object_name_suffix = " \\\\"
+    else:
+        object_name_suffix = ""
+
     return f"""#!/bin/bash
 #SBATCH --job-name={job_name}
 #SBATCH --output={remote_project_dir}/outputs/logs/{job_name}_%j.out
@@ -75,7 +82,7 @@ python ControlSketch/object_sketching.py \\
   --output_dir "{remote_project_dir}/outputs/{job_name}_run" \\
   --wandb_name "{job_name}" \\
   --condition "{condition}" \\
-  --object_name "{object_name}"
+  {caption_arg}  --object_name "{object_name}"{object_name_suffix}
 """
 
 class ThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
@@ -418,6 +425,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
             condition = params.get('condition', ['depth'])[0]
             object_name = params.get('object_name', ['face'])[0]
             suffix = params.get('suffix', [''])[0].strip()
+            caption = params.get('caption', [''])[0].strip()
             if 'suffix' not in params:
                 print("[WARNING] 'suffix' query parameter was not provided in the API request. Defaulting to empty suffix.")
             
@@ -500,7 +508,8 @@ class SlurmHandler(BaseHTTPRequestHandler):
                     feather_face_mask=feather_face_mask,
                     condition=condition,
                     object_name=object_name,
-                    remote_project_dir=remote_project_dir
+                    remote_project_dir=remote_project_dir,
+                    caption=caption
                 )
                 with open(local_slurm_path, "w", encoding="utf-8") as f:
                     f.write(slurm_content)

@@ -18,6 +18,13 @@ class ControlSDSLoss(nn.Module):
         self.device = device
         condition= self.args.condition
         self.conditioning_scale = self.args.conditioning_scale
+
+        # 1. Create caption first (before loading SD & ControlNet pipelines to GPU)
+        if self.args.caption == "":
+            self.create_caption()
+        print("The text prompt for the controlnet sds loss:", self.args.caption, flush=True)
+
+        # 2. Load controlnet and Stable Diffusion pipeline
         controlnet = cc.controlnet(condition, self.device)
         self.resized_mask = []
 
@@ -27,11 +34,6 @@ class ControlSDSLoss(nn.Module):
         self.alphas = self.pipe.scheduler.alphas_cumprod.to(self.device)
         self.sigmas = (1 - self.pipe.scheduler.alphas_cumprod).to(self.device)
         self.condition_image = self.create_condition_image(condition)
-
-        # creare caption
-        if self.args.caption == "":
-            self.create_caption()
-        print("The text prompt for the controlnet sds loss:", self.args.caption, flush=True)
 
         # create text embeddings
         self.text_embeddings = None
@@ -43,10 +45,12 @@ class ControlSDSLoss(nn.Module):
         condition = self.creat_masked_condition(condition)
         condition.save(f"{self.args.output_dir}/{condition_name}_condition.png")
         if self.args.use_wandb:
-            image_to_wandb = np.array(condition)
-            wandb.log({f"{condition_name}_condition": wandb.Image(image_to_wandb)})
-        final_condition = self.preprocessing_image_condtion(condition)
-        return final_condition
+            wandb.log({f"{condition_name}_condition": wandb.Image(condition)})
+        image = transforms.ToTensor()(condition)
+        image = image.to(dtype=self.pipe.unet.dtype)
+        image = image.to(device=self.device, dtype=self.pipe.unet.dtype)
+        image = image.unsqueeze(0)
+        return image
 
     def creat_masked_condition(self, condition):
         im_np = np.array(condition)
@@ -74,14 +78,15 @@ class ControlSDSLoss(nn.Module):
 
 
     def create_caption(self):
-        print("[CAPTION LOG] Generating text caption using BLIP-2 on CPU to save GPU memory...", flush=True)
+        print("[CAPTION LOG] Generating text caption using BLIP-2 on GPU...", flush=True)
         blip2processor = AutoProcessor.from_pretrained("Salesforce/blip2-opt-2.7b")
-        # Load BLIP-2 in float32 on CPU (float16 has limited native support on CPU)
+        # Load BLIP-2 in float16 on GPU (or float32 if on CPU)
+        dtype = torch.float16 if "cuda" in str(self.device) else torch.float32
         blip2model = Blip2ForConditionalGeneration.from_pretrained("Salesforce/blip2-opt-2.7b",
-                                                                   torch_dtype=torch.float32,
-                                                                   resume_download=True).to("cpu")
+                                                                   torch_dtype=dtype,
+                                                                   resume_download=True).to(self.device)
         with torch.no_grad():
-            inputs = blip2processor(self.args.input_image, return_tensors="pt").to("cpu")
+            inputs = blip2processor(self.args.input_image, return_tensors="pt").to(self.device, dtype)
             generated_ids = blip2model.generate(**inputs, max_new_tokens=20)
             generated_text = blip2processor.batch_decode(generated_ids, skip_special_tokens=True)[0].strip()
         caption = f"{generated_text}"
