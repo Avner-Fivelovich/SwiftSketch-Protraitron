@@ -489,33 +489,38 @@
             <div class="glass-card">
                 <h2>Single Image Job Builder</h2>
 
-                <!-- Target Image dynamic selector -->
                 <div class="form-group">
                     <label>Select Target Image</label>
-                    <select id="imageSelector">
+                    <select id="imageSelector" onchange="updateImagePreview(this.value)">
                         <option value="">Scanned images loading...</option>
                     </select>
                     <div class="input-helper">Scanned recursively from local <code>Pictures/</code>.</div>
                 </div>
 
+                <div class="form-group" id="imagePreviewContainer"
+                    style="display: none; margin-top: 0.5rem; text-align: center;">
+                    <img id="imagePreview"
+                        style="max-width: 100%; max-height: 200px; border-radius: var(--border-radius); border: 1px solid var(--border-color); box-shadow: 0 4px 12px rgba(0,0,0,0.3); background: rgba(255,255,255,0.02); object-fit: contain;" />
+                </div>
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
                     <div class="form-group">
                         <label>Strokes</label>
-                        <input type="text" id="customStrokes" value="98">
+                        <input type="text" id="customStrokes" value="96">
                     </div>
                     <div class="form-group">
                         <label>Iterations</label>
-                        <input type="text" id="customIter" value="1200">
+                        <input type="text" id="customIter" value="2000">
                     </div>
                 </div>
 
                 <div class="form-group">
                     <label>Feather Mask Mode</label>
                     <select id="customFeather">
-                        <option value="3">Face Mask (Mode 3)</option>
+                        <option value="1">Mode 1(no added Attention)</option>
                         <option value="0">Disabled (Mode 0)</option>
-                        <option value="1">Mode 1</option>
                         <option value="2">Mode 2</option>
+                        <option value="3">Face Mask (Mode 3)</option>
                     </select>
                 </div>
 
@@ -910,6 +915,18 @@
                 });
         }
 
+        function updateImagePreview(path) {
+            const container = document.getElementById("imagePreviewContainer");
+            const img = document.getElementById("imagePreview");
+            if (!path) {
+                container.style.display = "none";
+                img.src = "";
+                return;
+            }
+            img.src = `/api/view-image?path=${encodeURIComponent(path)}`;
+            container.style.display = "block";
+        }
+
         function loadLocalImages() {
             const selector = document.getElementById("imageSelector");
             selector.innerHTML = '<option value="">Scanning local images...</option>';
@@ -920,6 +937,7 @@
                     selector.innerHTML = '';
                     if (!data.images || data.images.length === 0) {
                         selector.innerHTML = '<option value="">No images found in Pictures/</option>';
+                        updateImagePreview("");
                         return;
                     }
 
@@ -929,9 +947,13 @@
                         opt.innerText = img.relative_path;
                         selector.appendChild(opt);
                     });
+
+                    // Trigger preview for first image in list by default
+                    updateImagePreview(selector.value);
                 })
                 .catch(err => {
                     selector.innerHTML = '<option value="">Error scanning local files</option>';
+                    updateImagePreview("");
                     console.error("Failed to list images: ", err);
                 });
         }
