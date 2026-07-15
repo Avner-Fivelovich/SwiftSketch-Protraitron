@@ -533,6 +533,12 @@
                     <input type="text" id="customObjectName" value="face">
                 </div>
 
+                <div class="form-group">
+                    <label>Output Folder Suffix</label>
+                    <input type="text" id="customSuffix" placeholder="e.g. run1, exp_a">
+                    <div class="input-helper">Optional custom tag appended to the job and output directory names.</div>
+                </div>
+
                 <button class="btn btn-primary" onclick="submitSingleImageJob()" style="width: 100%;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         stroke-width="2.5">
@@ -942,6 +948,7 @@
             const feather = document.getElementById("customFeather").value;
             const condition = document.getElementById("customCondition").value;
             const objName = document.getElementById("customObjectName").value.trim();
+            const suffix = document.getElementById("customSuffix").value.trim();
 
             if (!numStrokes || !numIter || !objName) {
                 alert("Please fill in all form fields.");
@@ -953,7 +960,8 @@
                 `&num_iter=${encodeURIComponent(numIter)}` +
                 `&feather_face_mask=${encodeURIComponent(feather)}` +
                 `&condition=${encodeURIComponent(condition)}` +
-                `&object_name=${encodeURIComponent(objName)}`;
+                `&object_name=${encodeURIComponent(objName)}` +
+                `&suffix=${encodeURIComponent(suffix)}`;
 
             triggerAction('submit-single-job', paramsString);
         }
