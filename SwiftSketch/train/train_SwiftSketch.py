@@ -20,8 +20,9 @@ def main():
     if args.num_strokes is not None:
         args.num_paths = args.num_strokes
         args.target_key_name = f"svg_{args.num_strokes}s"
-        # Auto-route to the correct dataset folder
-        args.train_data_dir = [f"data/controlsketch_{args.num_strokes}/train"]
+        # Auto-route to the correct dataset folder if not provided
+        if not args.train_data_dir:
+            args.train_data_dir = [f"data/controlsketch_{args.num_strokes}/train"]
         # Update data_name to avoid cache collision
         args.data_name = f"train_data_{args.num_strokes}s"
     else:
