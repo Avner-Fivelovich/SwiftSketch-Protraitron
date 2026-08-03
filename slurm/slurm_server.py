@@ -584,7 +584,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
             full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-                f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
+                f"{CLUSTER_USER}@{CLUSTER_HOST}", "bash", "-l", "-c", full_command
             ]
             args = ["sshpass", "-e"] + ssh_cmd if password else ssh_cmd
             code = self.run_stream_process(args, env, f"[CLUSTER] Generating 96s Targets for {dataset.upper()}")
@@ -595,7 +595,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
             full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-                f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
+                f"{CLUSTER_USER}@{CLUSTER_HOST}", "bash", "-l", "-c", full_command
             ]
             args = ["sshpass", "-e"] + ssh_cmd if password else ssh_cmd
             code = self.run_stream_process(args, env, f"[CLUSTER] Extracting CLIP Features for Original and FFHQ data")
@@ -606,7 +606,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
             full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-                f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
+                f"{CLUSTER_USER}@{CLUSTER_HOST}", "bash", "-l", "-c", full_command
             ]
             args = ["sshpass", "-e"] + ssh_cmd if password else ssh_cmd
             code = self.run_stream_process(args, env, f"[CLUSTER] Submitting Base 96-Stroke Diffusion Training Job")
