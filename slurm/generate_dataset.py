@@ -147,7 +147,8 @@ def main():
             "--num_strokes", str(args.num_strokes),
             "--save_svg_in_dict", "1",
             "--output_dir", temp_sketch_logs,
-            "--use_cpu", "0" if device.type in ["cuda", "mps"] else "1"
+            "--use_cpu", "0" if device.type in ["cuda", "mps"] else "1",
+            "--save_interval", "1000"
         ]
         
         # Execute the optimization
