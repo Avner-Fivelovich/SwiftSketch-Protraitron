@@ -13,3 +13,5 @@ outputs/
 
 # Ignore generated slurm jobs
 slurm/jobs/
+Pictures/
+SwiftSketch/save
