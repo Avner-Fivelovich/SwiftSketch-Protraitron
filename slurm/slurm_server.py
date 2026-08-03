@@ -384,22 +384,36 @@ class SlurmHandler(BaseHTTPRequestHandler):
             self.send_sse_finished(code)
 
         elif action == "sync-pull":
-            # Pull cluster outputs to local outputs
-            src = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/outputs/"
-            dest = os.path.join(DEFAULT_LOCAL_DIR, "outputs/")
+            # Pull cluster outputs and trained model checkpoints to local machine
+            src_outputs = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/outputs/"
+            dest_outputs = os.path.join(DEFAULT_LOCAL_DIR, "outputs/")
             
-            rsync_cmd = [
-                "rsync", "-avz", "--progress",
-                "-e", "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
-                src, dest
-            ]
+            src_models = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/SwiftSketch/save/"
+            dest_models = os.path.join(DEFAULT_LOCAL_DIR, "SwiftSketch/save/")
+            
+            # Ensure local model save dir exists
+            os.makedirs(dest_models, exist_ok=True)
+            
+            rsync_opts = ["rsync", "-avz", "--progress", "-e", "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"]
+            
+            # Rsync command 1: outputs
+            rsync_cmd_1 = rsync_opts + [src_outputs, dest_outputs]
+            # Rsync command 2: models
+            rsync_cmd_2 = rsync_opts + [src_models, dest_models]
+            
             if password:
-                args = ["sshpass", "-e"] + rsync_cmd
+                args1 = ["sshpass", "-e"] + rsync_cmd_1
+                args2 = ["sshpass", "-e"] + rsync_cmd_2
             else:
-                args = rsync_cmd
+                args1 = rsync_cmd_1
+                args2 = rsync_cmd_2
                 
-            code = self.run_stream_process(args, env, f"[LOCAL] Syncing Results: Cluster [{src}] ---> Local [{dest}]")
-            self.send_sse_finished(code)
+            code1 = self.run_stream_process(args1, env, f"[LOCAL] Syncing Results: Cluster [{src_outputs}] ---> Local [{dest_outputs}]")
+            if code1 == 0:
+                code2 = self.run_stream_process(args2, env, f"[LOCAL] Syncing Models: Cluster [{src_models}] ---> Local [{dest_models}]")
+                self.send_sse_finished(code2)
+            else:
+                self.send_sse_finished(code1)
 
         elif action == "remote-cmd":
             if not custom_cmd:
@@ -559,6 +573,44 @@ class SlurmHandler(BaseHTTPRequestHandler):
             self.send_sse_line(f"[SUCCESS] Job {job_name} successfully submitted to Slurm cluster queue.")
             self.send_sse_finished(0)
             
+        elif action == "submit-generation":
+            dataset = params.get('dataset', ['original'])[0]
+            if dataset == "original":
+                custom_cmd = "python slurm/generate_generation_jobs.py --input_dir \"ControlSketch/data/train\" --output_base_dir \"data/original\" --strokes 96 --max_files 5000 --allowed_categories woman angel astronaut sculpture robot && ./slurm/submit_all_generation_jobs.sh 96"
+            else:
+                custom_cmd = "python slurm/generate_generation_jobs.py --input_dir \"data/ffhq_raw_npz\" --output_base_dir \"data/ffhq\" --strokes 96 && ./slurm/submit_all_generation_jobs.sh 96"
+                
+            full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}"
+            ssh_cmd = [
+                "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
+            ]
+            args = ["sshpass", "-e"] + ssh_cmd if password else ssh_cmd
+            code = self.run_stream_process(args, env, f"[CLUSTER] Generating 96s Targets for {dataset.upper()}")
+            self.send_sse_finished(code)
+
+        elif action == "extract-features":
+            custom_cmd = "cd SwiftSketch && python -m utils.get_features --dir_name \"../data/original/strokes_96\" && python -m utils.get_features --dir_name \"../data/ffhq/strokes_96\""
+            full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}"
+            ssh_cmd = [
+                "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
+            ]
+            args = ["sshpass", "-e"] + ssh_cmd if password else ssh_cmd
+            code = self.run_stream_process(args, env, f"[CLUSTER] Extracting CLIP Features for Original and FFHQ data")
+            self.send_sse_finished(code)
+
+        elif action == "train-base":
+            custom_cmd = "sbatch slurm/run_train_custom_96s.slurm"
+            full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}"
+            ssh_cmd = [
+                "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+                f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
+            ]
+            args = ["sshpass", "-e"] + ssh_cmd if password else ssh_cmd
+            code = self.run_stream_process(args, env, f"[CLUSTER] Submitting Base 96-Stroke Diffusion Training Job")
+            self.send_sse_finished(code)
+
         else:
             self.send_sse_line(f"[ERROR] Unknown sync or execution action: {action}")
             self.send_sse_finished(-1)
