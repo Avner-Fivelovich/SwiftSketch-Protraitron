@@ -426,7 +426,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
                 f"{CLUSTER_USER}@{CLUSTER_HOST}",
-                full_command
+                "bash", "-l", "-c", full_command
             ]
             if password:
                 args = ["sshpass", "-e"] + ssh_cmd
