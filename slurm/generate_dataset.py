@@ -141,14 +141,25 @@ def main():
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
 
+        global_idx = args.start_idx + idx
+        is_sampled = (global_idx % 1000 == 0)
+        
+        # For sampled files (1 in 1000), save intermediates to a persistent folder. Otherwise, use temp and no intermediates.
+        current_save_interval = "100" if is_sampled else "10000"
+        current_output_dir = os.path.join(args.output_dir, "samples", f"{os.path.basename(dest_file).replace('.npz', '')}_{args.num_strokes}s") if is_sampled else temp_sketch_logs
+        
+        if is_sampled:
+            os.makedirs(current_output_dir, exist_ok=True)
+            print(f"  [SAMPLING ACTIVATED] Saving intermediate frames for this image to: {current_output_dir}", flush=True)
+
         cmd = [
             sys.executable, "ControlSketch/object_sketching.py",
             "--target", dest_file,
             "--num_strokes", str(args.num_strokes),
             "--save_svg_in_dict", "1",
-            "--output_dir", temp_sketch_logs,
+            "--output_dir", current_output_dir,
             "--use_cpu", "0" if device.type in ["cuda", "mps"] else "1",
-            "--save_interval", "1000"
+            "--save_interval", current_save_interval
         ]
         
         # Execute the optimization
