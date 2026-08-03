@@ -175,7 +175,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
         return result.returncode, result.stdout, result.stderr
 
     def handle_squeue(self):
-        code, stdout, stderr = self.run_remote_cmd(f"squeue -u {CLUSTER_USER}")
+        code, stdout, stderr = self.run_remote_cmd(f"squeue -u {CLUSTER_USER} --sort=i")
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()

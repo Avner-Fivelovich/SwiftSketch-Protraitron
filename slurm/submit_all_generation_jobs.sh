@@ -42,5 +42,5 @@ for stroke in "${STROKE_COUNTS[@]}"; do
 done
 
 echo "Done. All generation jobs submitted to the queue."
-echo "Use 'squeue --me' to check your job status."
-squeue --me
+echo "Use 'squeue --me --sort=i' to check your job status."
+squeue --me --sort=i
