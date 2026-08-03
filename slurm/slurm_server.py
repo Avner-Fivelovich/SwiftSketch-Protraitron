@@ -422,11 +422,11 @@ class SlurmHandler(BaseHTTPRequestHandler):
                 self.send_sse_finished(-1)
                 return
                 
-            full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}"
+            full_command = f"bash -l -c 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}'"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
                 f"{CLUSTER_USER}@{CLUSTER_HOST}",
-                "bash", "-l", "-c", full_command
+                full_command
             ]
             if password:
                 args = ["sshpass", "-e"] + ssh_cmd
@@ -581,10 +581,10 @@ class SlurmHandler(BaseHTTPRequestHandler):
             else:
                 custom_cmd = "python slurm/generate_generation_jobs.py --input_dir \"data/ffhq_raw_npz\" --output_base_dir \"data/ffhq\" --strokes 96 && ./slurm/submit_all_generation_jobs.sh 96"
                 
-            full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}"
+            full_command = f"bash -l -c 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}'"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-                f"{CLUSTER_USER}@{CLUSTER_HOST}", "bash", "-l", "-c", full_command
+                f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
             ]
             args = ["sshpass", "-e"] + ssh_cmd if password else ssh_cmd
             code = self.run_stream_process(args, env, f"[CLUSTER] Generating 96s Targets for {dataset.upper()}")
@@ -592,10 +592,10 @@ class SlurmHandler(BaseHTTPRequestHandler):
 
         elif action == "extract-features":
             custom_cmd = "cd SwiftSketch && python -m utils.get_features --dir_name \"../data/original/strokes_96\" && python -m utils.get_features --dir_name \"../data/ffhq/strokes_96\""
-            full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}"
+            full_command = f"bash -l -c 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}'"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-                f"{CLUSTER_USER}@{CLUSTER_HOST}", "bash", "-l", "-c", full_command
+                f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
             ]
             args = ["sshpass", "-e"] + ssh_cmd if password else ssh_cmd
             code = self.run_stream_process(args, env, f"[CLUSTER] Extracting CLIP Features for Original and FFHQ data")
@@ -603,10 +603,10 @@ class SlurmHandler(BaseHTTPRequestHandler):
 
         elif action == "train-base":
             custom_cmd = "sbatch slurm/run_train_custom_96s.slurm"
-            full_command = f"cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}"
+            full_command = f"bash -l -c 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}'"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-                f"{CLUSTER_USER}@{CLUSTER_HOST}", "bash", "-l", "-c", full_command
+                f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
             ]
             args = ["sshpass", "-e"] + ssh_cmd if password else ssh_cmd
             code = self.run_stream_process(args, env, f"[CLUSTER] Submitting Base 96-Stroke Diffusion Training Job")
