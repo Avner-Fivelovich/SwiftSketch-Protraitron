@@ -15,3 +15,6 @@ outputs/
 slurm/jobs/
 Pictures/
 SwiftSketch/save
+
+# Ignore local archive folder
+archive/
