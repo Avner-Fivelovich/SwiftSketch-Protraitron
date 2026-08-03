@@ -29,18 +29,40 @@ def main():
     parser.add_argument("--max_samples", type=int, default=None, help="Maximum number of samples to process (for debugging or testing)")
     parser.add_argument("--start_idx", type=int, default=0, help="Start index for processing files (for splitting/parallelizing jobs)")
     parser.add_argument("--limit", type=int, default=None, help="Number of files to process in this job (for splitting/parallelizing jobs)")
+    parser.add_argument("--max_files", type=int, default=None, help="Maximum number of files to process overall (applies stratified balancing)")
+    parser.add_argument("--allowed_categories", type=str, nargs="+", default=None, help="List of specific subdirectories to include")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Find all .npz files in the input directory (recursive)
-    npz_files = []
+    # Find all .npz files and group by category (subdirectory)
+    from collections import defaultdict
+    category_files = defaultdict(list)
     for root, _, files in os.walk(args.input_dir):
         for file in files:
             if file.endswith(".npz"):
-                npz_files.append(os.path.join(root, file))
+                rel_dir = os.path.relpath(root, args.input_dir)
+                if args.allowed_categories is not None and rel_dir not in args.allowed_categories:
+                    continue
+                category_files[rel_dir].append(os.path.join(root, file))
     
-    npz_files = sorted(npz_files)
+    npz_files = []
+    if args.max_files is not None:
+        num_categories = len(category_files)
+        files_per_category = args.max_files // num_categories
+        remainder = args.max_files % num_categories
+        
+        for i, cat in enumerate(sorted(category_files.keys())):
+            files = category_files[cat]
+            take_count = files_per_category + (1 if i < remainder else 0)
+            files.sort()
+            npz_files.extend(files[:take_count])
+    else:
+        for cat in sorted(category_files.keys()):
+            files = category_files[cat]
+            files.sort()
+            npz_files.extend(files)
+
     if args.max_samples is not None:
         npz_files = npz_files[:args.max_samples]
 
