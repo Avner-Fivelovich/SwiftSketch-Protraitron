@@ -367,20 +367,21 @@ class SlurmHandler(BaseHTTPRequestHandler):
 
         elif action == "sync-data":
             # Push local dataset folder
-            src = os.path.join(DEFAULT_LOCAL_DIR, "ControlSketch/data/")
-            dest = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ControlSketch/data/"
+            src_cs = os.path.join(DEFAULT_LOCAL_DIR, "ControlSketch/data")
+            dest_cs = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ControlSketch/"
             
-            rsync_cmd = [
-                "rsync", "-avz", "--progress",
-                "-e", "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
-                src, dest
-            ]
+            src_ffhq = os.path.join(DEFAULT_LOCAL_DIR, "data/ffhq_raw_npz")
+            dest_ffhq = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/data/"
+            
+            script = f'rsync -avz --progress -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" "{src_cs}" "{dest_cs}" && ' \
+                     f'rsync -avz --progress -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" "{src_ffhq}" "{dest_ffhq}"'
+            
             if password:
-                args = ["sshpass", "-e"] + rsync_cmd
+                args = ["sshpass", "-e", "sh", "-c", script]
             else:
-                args = rsync_cmd
+                args = ["sh", "-c", script]
                 
-            code = self.run_stream_process(args, env, f"[LOCAL] Syncing Datasets: Local [{src}] ---> Cluster [{dest}]")
+            code = self.run_stream_process(args, env, f"[LOCAL] Syncing Datasets: ControlSketch and FFHQ ---> Cluster [{CLUSTER_HOST}]")
             self.send_sse_finished(code)
 
         elif action == "sync-pull":
