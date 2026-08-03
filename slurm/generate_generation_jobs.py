@@ -113,12 +113,15 @@ def main():
     total_jobs = len(args.strokes) * num_batches
     print(f"Generating a total of {total_jobs} SLURM scripts...")
 
+    import shutil
     for num_strokes in args.strokes:
         # Organize scripts and outputs by stroke count
         log_subdir = f"{BASE_LOG_DIR}/strokes_{num_strokes}"
         slurm_subdir = f"{BASE_SLURM_DIR}/strokes_{num_strokes}"
         output_dir = f"{args.output_base_dir}/controlsketch_{num_strokes}/train"
         
+        if os.path.exists(slurm_subdir):
+            shutil.rmtree(slurm_subdir)
         os.makedirs(slurm_subdir, exist_ok=True)
         
         for batch_idx in range(num_batches):
