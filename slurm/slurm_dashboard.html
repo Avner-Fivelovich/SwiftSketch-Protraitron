@@ -789,20 +789,44 @@
                     return;
                 }
 
-                // Add colors for typical outputs
-                let cleanLine = line;
-                if (line.includes('[ERROR]') || line.includes('error') || line.includes('failed') || line.includes('Failed')) {
-                    cleanLine = `<span class="term-error">${line}</span>`;
-                } else if (line.includes('[SUCCESS]') || line.includes('successfully') || line.includes('completed')) {
-                    cleanLine = `<span class="term-success">${line}</span>`;
-                } else if (line.includes('[WARNING]') || line.includes('warning')) {
-                    cleanLine = `<span class="term-warning">${line}</span>`;
-                } else if (line.startsWith('[LOCAL]') || line.startsWith('[CLUSTER]')) {
-                    cleanLine = `<span class="term-info">${line}</span>`;
+                // --- UPGRADE 4: Parse Real ANSI Terminal Colors ---
+                let cleanLine = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                
+                // Parse standard ANSI color codes
+                cleanLine = cleanLine.replace(/\x1B\[1m/g, '<b>').replace(/\x1B\[0m/g, '</b></span>');
+                cleanLine = cleanLine.replace(/\x1B\[31m/g, '<span style="color: #ef4444;">'); // Red
+                cleanLine = cleanLine.replace(/\x1B\[32m/g, '<span style="color: #22c55e;">'); // Green
+                cleanLine = cleanLine.replace(/\x1B\[33m/g, '<span style="color: #eab308;">'); // Yellow
+                cleanLine = cleanLine.replace(/\x1B\[34m/g, '<span style="color: #3b82f6;">'); // Blue
+                cleanLine = cleanLine.replace(/\x1B\[35m/g, '<span style="color: #d946ef;">'); // Magenta
+                cleanLine = cleanLine.replace(/\x1B\[36m/g, '<span style="color: #06b6d4;">'); // Cyan
+                cleanLine = cleanLine.replace(/\x1B\[90m/g, '<span style="color: #9ca3af;">'); // Gray
+                cleanLine = cleanLine.replace(/\x1B\[[0-9;]*m/g, ''); // Catch all for resets
+                
+                // Fallback for primitive styling (retain useful semantic coloring if no ANSI codes exist)
+                if (!line.includes('\x1b')) {
+                    if (line.includes('[ERROR]') || line.includes('error') || line.includes('failed') || line.includes('Failed')) {
+                        cleanLine = `<span class="term-error">${cleanLine}</span>`;
+                    } else if (line.includes('[SUCCESS]') || line.includes('successfully') || line.includes('completed')) {
+                        cleanLine = `<span class="term-success">${cleanLine}</span>`;
+                    } else if (line.includes('[WARNING]') || line.includes('warning')) {
+                        cleanLine = `<span class="term-warning">${cleanLine}</span>`;
+                    } else if (line.startsWith('[LOCAL]') || line.startsWith('[CLUSTER]')) {
+                        cleanLine = `<span class="term-info">${cleanLine}</span>`;
+                    }
                 }
 
-                term.innerHTML += cleanLine + "\n";
-                term.scrollTop = term.scrollHeight;
+                // --- UPGRADE 3: Stop "Scroll-Jacking" (Smart Auto-Scroll) ---
+                const isScrolledToBottom = (term.scrollHeight - term.clientHeight) <= (term.scrollTop + 20);
+
+                // --- UPGRADE 1: Fix the innerHTML += Performance Trap ---
+                const lineNode = document.createElement("span");
+                lineNode.innerHTML = cleanLine + "\n";
+                term.appendChild(lineNode);
+
+                if (isScrolledToBottom) {
+                    term.scrollTop = term.scrollHeight;
+                }
             };
 
             eventSource.onerror = function () {
@@ -817,8 +841,16 @@
             }
             setStatus(status, 'IDLE');
             const term = document.getElementById("terminalBody");
-            term.innerHTML += `\n<span class="term-info">${finalMsg}</span>\n`;
-            term.scrollTop = term.scrollHeight;
+            
+            const isScrolledToBottom = (term.scrollHeight - term.clientHeight) <= (term.scrollTop + 20);
+            
+            const finalNode = document.createElement("span");
+            finalNode.innerHTML = `\n<span class="term-info">${finalMsg}</span>\n`;
+            term.appendChild(finalNode);
+            
+            if (isScrolledToBottom) {
+                term.scrollTop = term.scrollHeight;
+            }
         }
 
         function abortExecution() {
