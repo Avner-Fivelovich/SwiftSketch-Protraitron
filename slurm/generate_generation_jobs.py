@@ -31,6 +31,7 @@ SLURM_TEMPLATE = """#!/bin/bash
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=15000
 #SBATCH --gpus=1
+#SBATCH --prefer="geforce_rtx_2080"
 
 # 1. Activate environment
 source ~/.bashrc

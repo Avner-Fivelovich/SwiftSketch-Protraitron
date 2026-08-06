@@ -51,6 +51,7 @@ def generate_custom_slurm(job_name, remote_image_path, num_strokes, num_iter, fe
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16000
 #SBATCH --gpus=1
+#SBATCH --prefer="geforce_rtx_2080"
 
 # 1. Activate environment
 source ~/.bashrc
