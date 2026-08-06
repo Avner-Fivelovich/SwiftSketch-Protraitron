@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument("--images_per_job", type=int, default=100, help="Images processed per slurm job")
     parser.add_argument("--max_files", type=int, default=None, help="Maximum number of files to process overall (useful for limiting huge datasets)")
     parser.add_argument("--allowed_categories", type=str, nargs="+", default=None, help="List of specific subdirectories to include")
+    parser.add_argument("--job_prefix", type=str, default="orig", help="Prefix for the generated job names (e.g. orig or ffhq)")
     return parser.parse_args()
 
 SLURM_TEMPLATE = """#!/bin/bash
@@ -27,8 +28,8 @@ SLURM_TEMPLATE = """#!/bin/bash
 #SBATCH --time=1440
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=32000
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=15000
 #SBATCH --gpus=1
 
 # 1. Activate environment
@@ -126,7 +127,7 @@ def main():
         
         for batch_idx in range(num_batches):
             start_idx = batch_idx * args.images_per_job
-            job_name = f"ss_gen_{num_strokes}_b{batch_idx}"
+            job_name = f"{args.job_prefix}B{batch_idx}_{num_strokes}_ss"
             
             
             max_files_flag = f"--max_files {args.max_files}" if args.max_files is not None else ""

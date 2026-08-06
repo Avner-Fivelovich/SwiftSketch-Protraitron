@@ -48,8 +48,8 @@ def generate_custom_slurm(job_name, remote_image_path, num_strokes, num_iter, fe
 #SBATCH --time=1440
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=36000
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=16000
 #SBATCH --gpus=1
 
 # 1. Activate environment
@@ -341,8 +341,9 @@ class SlurmHandler(BaseHTTPRequestHandler):
             
             # Exclusions list
             exclusions = [
-                ".git", ".git/", "data/", "outputs/", "**/__pycache__/", 
+                ".git", ".git/", "data/", "outputs/", "**/__pycache__/", "archive/", "ControlSketch/data/", "test_env/",
                 "*.tflite", "*.task", "*.png", "*.jpg", "*.jpeg", "*.JPG", "*.JPEG", "*.PNG",
+                "*.pt", "*.npz", "*.tar.gz", "*.gz",
                 "diffvg/", "build/", "dist/", ".DS_Store", "scratch/"
             ]
             
@@ -577,9 +578,9 @@ class SlurmHandler(BaseHTTPRequestHandler):
         elif action == "submit-generation":
             dataset = params.get('dataset', ['original'])[0]
             if dataset == "original":
-                custom_cmd = "python slurm/generate_generation_jobs.py --input_dir \"ControlSketch/data/train\" --output_base_dir \"data/original\" --strokes 96 --max_files 5000 --allowed_categories woman angel astronaut sculpture robot && ./slurm/submit_all_generation_jobs.sh 96"
+                custom_cmd = "python slurm/generate_generation_jobs.py --job_prefix orig --input_dir \"ControlSketch/data/train\" --output_base_dir \"data/original\" --strokes 96 --max_files 5000 --allowed_categories woman angel astronaut sculpture robot && ./slurm/submit_all_generation_jobs.sh 96"
             else:
-                custom_cmd = "python slurm/generate_generation_jobs.py --input_dir \"data/ffhq_raw_npz\" --output_base_dir \"data/ffhq\" --strokes 96 && ./slurm/submit_all_generation_jobs.sh 96"
+                custom_cmd = "python slurm/generate_generation_jobs.py --job_prefix ffhq --input_dir \"data/ffhq_raw_npz\" --output_base_dir \"data/ffhq\" --strokes 96 && ./slurm/submit_all_generation_jobs.sh 96"
                 
             full_command = f"bash -l -c 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}'"
             ssh_cmd = [
