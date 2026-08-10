@@ -424,7 +424,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
                 self.send_sse_finished(-1)
                 return
                 
-            full_command = f"bash -l -c 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}'"
+            full_command = f"bash -ic 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}'"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
                 f"{CLUSTER_USER}@{CLUSTER_HOST}",
@@ -578,12 +578,19 @@ class SlurmHandler(BaseHTTPRequestHandler):
             
         elif action == "submit-generation":
             dataset = params.get('dataset', ['original'])[0]
-            if dataset == "original":
-                custom_cmd = "python slurm/generate_generation_jobs.py --job_prefix orig --input_dir \"ControlSketch/data/train\" --output_base_dir \"data/original\" --strokes 96 --max_files 5000 --allowed_categories woman angel astronaut sculpture robot && ./slurm/submit_all_generation_jobs.sh 96"
-            else:
-                custom_cmd = "python slurm/generate_generation_jobs.py --job_prefix ffhq --input_dir \"data/ffhq_raw_npz\" --output_base_dir \"data/ffhq\" --strokes 96 && ./slurm/submit_all_generation_jobs.sh 96"
+            specific_batches_param = params.get('specific_batches', [None])[0]
+            
+            sb_flag = ""
+            if specific_batches_param:
+                # Replace commas with spaces, e.g. "21, 47" -> "21  47"
+                cleaned = specific_batches_param.replace(",", " ")
+                sb_flag = f" --specific_batches {cleaned}"
                 
-            full_command = f"bash -l -c 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}'"
+            if dataset == "original":
+                custom_cmd = f"python slurm/generate_generation_jobs.py --job_prefix orig --input_dir \"ControlSketch/data/train\" --output_base_dir \"data/original\" --strokes 96 --max_files 5000 --allowed_categories woman angel astronaut sculpture robot{sb_flag} && ./slurm/submit_all_generation_jobs.sh 96"
+            else:
+                custom_cmd = f"python slurm/generate_generation_jobs.py --job_prefix ffhq --input_dir \"data/ffhq_raw_npz\" --output_base_dir \"data/ffhq\" --strokes 96{sb_flag} && ./slurm/submit_all_generation_jobs.sh 96"
+            full_command = f"bash -ic 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}'"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
                 f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
@@ -594,7 +601,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
 
         elif action == "extract-features":
             custom_cmd = "cd SwiftSketch && python -m utils.get_features --dir_name \"../data/original/strokes_96\" && python -m utils.get_features --dir_name \"../data/ffhq/strokes_96\""
-            full_command = f"bash -l -c 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}'"
+            full_command = f"bash -ic 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && source ~/.bashrc && conda activate swiftsketch_env && {custom_cmd}'"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
                 f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
@@ -605,7 +612,7 @@ class SlurmHandler(BaseHTTPRequestHandler):
 
         elif action == "train-base":
             custom_cmd = "sbatch slurm/run_train_custom_96s.slurm"
-            full_command = f"bash -l -c 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}'"
+            full_command = f"bash -ic 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}'"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
                 f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command

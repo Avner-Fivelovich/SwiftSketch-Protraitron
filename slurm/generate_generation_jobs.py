@@ -17,6 +17,7 @@ def parse_args():
     parser.add_argument("--max_files", type=int, default=None, help="Maximum number of files to process overall (useful for limiting huge datasets)")
     parser.add_argument("--allowed_categories", type=str, nargs="+", default=None, help="List of specific subdirectories to include")
     parser.add_argument("--job_prefix", type=str, default="orig", help="Prefix for the generated job names (e.g. orig or ffhq)")
+    parser.add_argument("--specific_batches", type=int, nargs="+", default=None, help="Optional specific batch indices to generate (e.g., 21 47). If provided, only these batches are generated.")
     return parser.parse_args()
 
 SLURM_TEMPLATE = """#!/bin/bash
@@ -127,6 +128,9 @@ def main():
         os.makedirs(slurm_subdir, exist_ok=True)
         
         for batch_idx in range(num_batches):
+            if args.specific_batches is not None and batch_idx not in args.specific_batches:
+                continue
+                
             start_idx = batch_idx * args.images_per_job
             job_name = f"{args.job_prefix}B{batch_idx}_{num_strokes}_ss"
             
