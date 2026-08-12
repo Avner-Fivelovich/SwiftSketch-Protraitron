@@ -53,14 +53,24 @@ def create_data_set(dir_name_lst, target_key_name, image_features_type, canvas_w
             file_count = 0  # Counter for files processed in the current directory
             print(f"Processing directory: {dir_name}", flush=True)
 
-            for f_ in os.listdir(dir_name):
+            npz_files = []
+            for root, _, files in os.walk(dir_name):
+                for f in files:
+                    if f.endswith('.npz') or f.endswith('.npy'):
+                        npz_files.append(os.path.join(root, f))
+            
+            npz_files.sort()  # Ensure deterministic loading
+            
+            for file_path in npz_files:
                 if file_count >= cat_data_size:  # Stop if we reach the limit
-                    print(f"stopped at {f_}", flush=True)
+                    print(f"stopped at {os.path.basename(file_path)}", flush=True)
                     break
 
-                file_path = os.path.join(dir_name, f_)
                 features_key= f"{image_features_type}_features"
-                read_dictionary = utils.load_entry(file_path, [target_key_name], features_key)
+                try:
+                    read_dictionary = utils.load_entry(file_path, [target_key_name], features_key)
+                except Exception as e:
+                    continue
 
                 if target_key_name in read_dictionary.keys() and features_key in read_dictionary.keys():
                     target_svg= read_dictionary[target_key_name]
