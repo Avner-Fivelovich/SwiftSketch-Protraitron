@@ -613,8 +613,10 @@ class SlurmHandler(BaseHTTPRequestHandler):
             self.send_sse_finished(code)
 
         elif action == "train-base":
+            wandb_key = params.get('wandb_api_key', [''])[0]
+            export_cmd = f"export WANDB_API_KEY='{wandb_key}' && " if wandb_key else ""
             custom_cmd = "sbatch slurm/run_train_custom_96s.slurm"
-            full_command = f"bash -ic 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {custom_cmd}'"
+            full_command = f"bash -ic 'cd {DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/ && {export_cmd}{custom_cmd}'"
             ssh_cmd = [
                 "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
                 f"{CLUSTER_USER}@{CLUSTER_HOST}", full_command
