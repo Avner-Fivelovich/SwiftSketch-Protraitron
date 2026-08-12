@@ -50,4 +50,4 @@ python -m train.train_SwiftSketch \
     --title "Train_96s_Custom_" \
     --batch_size 8 \
     --num_steps 120000 \
-    --save_interval 60000
+    --save_interval 20000
