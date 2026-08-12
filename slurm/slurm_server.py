@@ -386,6 +386,23 @@ class SlurmHandler(BaseHTTPRequestHandler):
             code = self.run_stream_process(args, env, f"[LOCAL] Syncing Datasets: ControlSketch and FFHQ ---> Cluster [{CLUSTER_HOST}]")
             self.send_sse_finished(code)
 
+        elif action == "sync-logs":
+            # Pull ONLY the logs directory
+            src_logs = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/outputs/logs/"
+            dest_logs = os.path.join(DEFAULT_LOCAL_DIR, "outputs/logs/")
+            os.makedirs(dest_logs, exist_ok=True)
+            
+            rsync_opts = ["rsync", "-avz", "--progress", "-e", "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"]
+            rsync_cmd = rsync_opts + [src_logs, dest_logs]
+            
+            if password:
+                args = ["sshpass", "-e"] + rsync_cmd
+            else:
+                args = rsync_cmd
+                
+            code = self.run_stream_process(args, env, f"[LOCAL] Syncing Logs Only: Cluster [{src_logs}] ---> Local [{dest_logs}]")
+            self.send_sse_finished(code)
+
         elif action == "sync-pull":
             # Pull cluster outputs and trained model checkpoints to local machine
             src_outputs = f"{CLUSTER_USER}@{CLUSTER_HOST}:{DEFAULT_REMOTE_DIR}SwiftSketch-Protraitron/outputs/"
