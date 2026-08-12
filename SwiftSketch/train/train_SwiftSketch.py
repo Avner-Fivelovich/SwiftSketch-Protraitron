@@ -38,11 +38,13 @@ def main():
     else:
         args.num_strokes = args.num_paths
 
-    # Explicitly enforce CPU execution for the differentiable rasterizer (pydiffvg)
+    # Enable GPU execution for the differentiable rasterizer (pydiffvg) to speed up training
     import pydiffvg
     import torch
-    pydiffvg.set_use_gpu(False)
-    pydiffvg.set_device(torch.device("cpu"))
+    pydiffvg.set_use_gpu(True)
+    
+    # We will set the device after dist_util is initialized
+    # pydiffvg.set_device(torch.device(dist_util.dev()))
 
     fixseed(args.seed)
 
@@ -74,6 +76,9 @@ def main():
 
     logger.info("Setting up distributed training (if any)")
     dist_util.setup_dist(args.device)
+    
+    # Set pydiffvg to use the correct GPU device
+    pydiffvg.set_device(dist_util.dev())
 
     logger.info(f"Starting data creation (target_key: {args.target_key_name}, features: {args.image_features_type})")
     try:
