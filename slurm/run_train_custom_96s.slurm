@@ -48,4 +48,4 @@ python -m train.train_SwiftSketch \
     --use_wandb 1 \
     --wandb_project_name "SwiftSketch-Protraitron" \
     --title "Train_96s_Custom_" \
-    --batch_size 16
+    --batch_size 8
