@@ -2,6 +2,7 @@
 
 import os
 import json
+import logging
 from torch.utils.data import DataLoader
 import wandb
 
@@ -15,6 +16,15 @@ from utils.get_data import create_data_set
 
 def main():
     args = train_args()
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s | %(levelname)-8s | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    logger = logging.getLogger(__name__)
+    logger.info("Starting SwiftSketch Training Session")
 
     # Handle num_strokes CLI parameterization and dataset routing
     if args.num_strokes is not None:
@@ -55,27 +65,41 @@ def main():
         raise FileExistsError('save_dir [{}] already exists.'.format(args.save_dir))
     elif not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
+        logger.info(f"Created save directory: {args.save_dir}")
+        
     args_path = os.path.join(args.save_dir, 'args.json')
     with open(args_path, 'w') as fw:
         json.dump(vars(args), fw, indent=4, sort_keys=True)
+    logger.debug(f"Saved training arguments to {args_path}")
 
+    logger.info("Setting up distributed training (if any)")
     dist_util.setup_dist(args.device)
 
+    logger.info(f"Starting data creation (target_key: {args.target_key_name}, features: {args.image_features_type})")
+    try:
+        train_dataset = create_data_set(args.train_data_dir, args.target_key_name, args.image_features_type, args.canvas_width, args.canvas_height, dist_util.dev(), args.scaling_factor, args.cat_data_size, args.sort_by, args.use_data_cache, args.cache_path_dir, args.data_name)
+        data = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True, pin_memory=True)
+        logger.info(f"Successfully loaded dataset with {len(train_dataset)} examples")
+    except Exception as e:
+        logger.error(f"Failed to load dataset: {e}")
+        raise
 
-    print("start data creation", flush=True)
-    train_dataset = create_data_set(args.train_data_dir, args.target_key_name ,args.image_features_type, args.canvas_width,args.canvas_height, dist_util.dev(), args.scaling_factor, args.cat_data_size ,args.sort_by, args.use_data_cache, args.cache_path_dir, args.data_name)
-    data= DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True, pin_memory=True)
+    logger.info("Creating model and diffusion schedule...")
+    try:
+        model, diffusion = create_model_and_diffusion(args)
+        model.to(dist_util.dev())
+        total_params = sum(p.numel() for p in model.parameters()) / 1000000.0
+        logger.info(f"Model created successfully. Total params: {total_params:.2f}M")
+    except Exception as e:
+        logger.error(f"Failed to create model: {e}")
+        raise
 
-    print("creating model and diffusion...", flush=True)
-    model, diffusion = create_model_and_diffusion(args)
-    model.to(dist_util.dev())
-
+    logger.info("Initializing Training Loop...")
+    loop = TrainLoop(args, model, diffusion, data)
     
-
-    print('Total params: %.2fM' % (sum(p.numel() for p in model.parameters()) / 1000000.0), flush=True)
-    print("Training...", flush=True)
-    loop= TrainLoop(args, model, diffusion, data)
+    logger.info("Training started.")
     loop.run_loop()
+    logger.info("Training completed successfully.")
     
 
     if args.use_wandb:

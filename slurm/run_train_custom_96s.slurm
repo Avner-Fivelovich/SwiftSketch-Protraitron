@@ -45,7 +45,7 @@ python -m train.train_SwiftSketch \
     --train_data_dir "$ORIGINAL_DATA" "$FFHQ_DATA" \
     --cat_data_size 5000 \
     --save_dir "outputs/train_96s_custom" \
-    --use_wandb 1 \
+    --use_wandb 0 \
     --wandb_project_name "SwiftSketch-Protraitron" \
     --title "Train_96s_Custom_" \
     --batch_size 16
