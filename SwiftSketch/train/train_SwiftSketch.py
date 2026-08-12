@@ -96,6 +96,14 @@ def main():
         raise
 
     logger.info("Initializing Training Loop...")
+    logger.info("="*40)
+    logger.info("HARDWARE & SLURM CONFIGURATION:")
+    logger.info(f"Node Name:           {os.environ.get('SLURM_JOB_NODELIST', 'Local/Unknown')}")
+    logger.info(f"Slurm Job ID:        {os.environ.get('SLURM_JOB_ID', 'N/A')}")
+    logger.info(f"Slurm CPUs/Task:     {os.environ.get('SLURM_CPUS_PER_TASK', 'N/A')}")
+    logger.info(f"Total OS CPUs:       {os.cpu_count()}")
+    logger.info(f"PyTorch Threads:     {torch.get_num_threads()}")
+    logger.info("="*40)
     loop = TrainLoop(args, model, diffusion, data)
     
     logger.info("Training started.")
