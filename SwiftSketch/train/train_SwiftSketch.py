@@ -79,7 +79,7 @@ def main():
     logger.info(f"Starting data creation (target_key: {args.target_key_name}, features: {args.image_features_type})")
     try:
         train_dataset = create_data_set(args.train_data_dir, args.target_key_name, args.image_features_type, args.canvas_width, args.canvas_height, dist_util.dev(), args.scaling_factor, args.cat_data_size, args.sort_by, args.use_data_cache, args.cache_path_dir, args.data_name)
-        data = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True, pin_memory=True)
+        data = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True, pin_memory=True, num_workers=8, prefetch_factor=2)
         logger.info(f"Successfully loaded dataset with {len(train_dataset)} examples")
     except Exception as e:
         logger.error(f"Failed to load dataset: {e}")
