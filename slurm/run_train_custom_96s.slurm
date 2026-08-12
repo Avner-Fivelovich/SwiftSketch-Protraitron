@@ -2,7 +2,7 @@
 #SBATCH --job-name=ss_train_96s
 #SBATCH --output=outputs/logs/ss_train_96s_%j.out
 #SBATCH --error=outputs/logs/ss_train_96s_%j.err
-#SBATCH --partition=student
+#SBATCH --partition=studentkillable
 #SBATCH --account=gpu-students
 #SBATCH --time=1440
 #SBATCH --nodes=1
