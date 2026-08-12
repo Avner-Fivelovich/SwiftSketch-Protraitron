@@ -48,4 +48,6 @@ python -m train.train_SwiftSketch \
     --use_wandb 1 \
     --wandb_project_name "SwiftSketch-Protraitron" \
     --title "Train_96s_Custom_" \
-    --batch_size 8
+    --batch_size 8 \
+    --num_steps 120000 \
+    --save_interval 60000
