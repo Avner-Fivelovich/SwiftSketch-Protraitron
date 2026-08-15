@@ -1,6 +1,7 @@
 # This code is based on https://github.com/openai/guided-diffusion
 
 import os
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 import json
 import logging
 from torch.utils.data import DataLoader

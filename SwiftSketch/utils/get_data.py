@@ -43,7 +43,7 @@ def create_data_set(dir_name_lst, target_key_name, image_features_type, canvas_w
     if use_cache and os.path.exists(cache_path):
         print("load data from cache", flush=True)
         print("cache path", cache_path, flush=True)
-        _cache = torch.load(cache_path)
+        _cache = torch.load(cache_path, weights_only=False, mmap=True)
         normalized_svg_control_points_lst, real_rendered_images_lst, image_features_lst = _cache['normalized_svg_control_points_lst'], _cache['real_rendered_images_lst'], _cache['image_features_lst']
     
     else:

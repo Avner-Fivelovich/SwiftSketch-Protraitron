@@ -18,3 +18,7 @@ SwiftSketch/save
 
 # Ignore local archive folder
 archive/
+
+wandb/
+*.log
+slurm/*.log

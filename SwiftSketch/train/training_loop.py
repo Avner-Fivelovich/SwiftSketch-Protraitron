@@ -78,9 +78,7 @@ class TrainLoop:
             # Model was resumed, either due to a restart or a checkpoint
             # being specified at the command line.
 
-        self.device = torch.device("cpu")
-        if torch.cuda.is_available() and dist_util.dev() != 'cpu':
-            self.device = torch.device(dist_util.dev())
+        self.device = dist_util.dev()
 
         self.schedule_sampler_type = 'uniform'
         self.schedule_sampler = create_named_schedule_sampler(self.schedule_sampler_type, diffusion)
