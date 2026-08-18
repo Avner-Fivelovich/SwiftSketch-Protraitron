@@ -12,11 +12,11 @@ SCRIPT_DIR = Path(__file__).parent.resolve()
 download_dir = SCRIPT_DIR / "data" / "ffhq_raw_npz"
 download_dir.mkdir(parents=True, exist_ok=True)
 
-num_images = 5000
+num_images = 15000
 
 print(f"Streaming dataset from Hugging Face... We will download {num_images} images.")
 # Removed memory-intensive shuffle(buffer_size=10000) to prevent macOS from SIGKILLing the process (OOM).
-# Taking the first 5000 images is perfectly diverse for FFHQ.
+# Taking the first 15000 images is perfectly diverse for FFHQ.
 dataset = load_dataset("marcosv/ffhq-dataset", split="train", streaming=True).take(num_images)
 
 def save_compressed_npz(file_path, image):
@@ -39,8 +39,13 @@ start_time = time.time()
 
 for idx, item in enumerate(dataset):
     try:
-        img = item['image']
         output_path = download_dir / f"ffhq_batch_{idx}.npz"
+        
+        # Skip instantly if we already downloaded this image!
+        if output_path.exists():
+            continue
+            
+        img = item['image']
         save_compressed_npz(output_path, img)
         
         saved_count += 1

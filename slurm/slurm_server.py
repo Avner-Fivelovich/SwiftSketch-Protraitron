@@ -345,7 +345,8 @@ class SlurmHandler(BaseHTTPRequestHandler):
                 ".git", ".git/", "data/", "outputs/", "**/__pycache__/", "archive/", "ControlSketch/data/", "test_env/",
                 "*.tflite", "*.task", "*.png", "*.jpg", "*.jpeg", "*.JPG", "*.JPEG", "*.PNG",
                 "*.pt", "*.npz", "*.tar.gz", "*.gz",
-                "diffvg/", "build/", "dist/", ".DS_Store", "scratch/"
+                "diffvg/", "build/", "dist/", ".DS_Store", "scratch/",
+                "wandb/", "*.log", "models/"
             ]
             
             rsync_cmd = ["rsync", "-avz", "--progress"]
