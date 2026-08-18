@@ -158,8 +158,20 @@ def main(args=None):
                         input_image = Image.open(image_path)
                         print(f"Loaded image: {image_path}")
                         input_image = input_image.convert("RGB")
-                        mask= sketch_utils.get_mask(input_image, device, mask_model)
-                        input_image= sketch_utils.create_masked_image(input_image, mask)
+                        mask = sketch_utils.get_mask(input_image, device, mask_model)
+                        
+                        # Save the generated mask to the output directory
+                        try:
+                            mask_np = mask.cpu().numpy() if hasattr(mask, 'cpu') else np.array(mask)
+                            mask_pil = Image.fromarray((mask_np * 255).astype('uint8'))
+                            mask_pil = mask_pil.resize(input_image.size, resample=Image.BILINEAR)
+                            mask_save_path = os.path.join(args.output_dir, "mask.png")
+                            mask_pil.save(mask_save_path)
+                            print(f"Saved background mask to: {mask_save_path}")
+                        except Exception as e:
+                            print(f"Warning: Could not save mask.png: {e}")
+                            
+                        input_image = sketch_utils.create_masked_image(input_image, mask)
                         if args.fix_scale:
                             input_image=sketch_utils.fix_image_scale(input_image)    
                         image_features = features_model(input_image).to(device)
@@ -169,7 +181,7 @@ def main(args=None):
                         images_files.remove(f_)
                             
 
-        if len(image_features)==0:
+        if len(image_features_lst) == 0:
             batch_count+=1
             continue    
 
@@ -231,17 +243,21 @@ def main(args=None):
                     target_file = f"{data_dir}/{image_file}"
                     sketch_utils.save_key(target_file, svg_content, key)
                     print(f"The final SwiftSketch SVG was saved to the input dictionary {image_file}, key is '{key}'")
+        else:
+            # If not using refine, render the diffusion output directly
+            sample_denorm = sketch_utils.denormalize_points(diffusion_control_points, args.scaling_factor, args.canvas_width)
+            _, final_svg_content_list = sketch_utils.rander_image_from_points(sample_denorm, args.canvas_width, args.canvas_height, return_svg_content=True)
 
            
-            if args.save_svg:
-            # Save each SVG content with its corresponding name
-                for svg_content, name in zip(final_svg_content_list, images_files):
-                    base_name = os.path.splitext(name)[0] 
-                    output_file_path = os.path.join(output_path, f"{base_name}.svg")  # Construct file path
-                    with open(output_file_path, 'w') as svg_file:
-                        svg_file.write(svg_content)  # Write the SVG content to the file
+        if args.save_svg:
+        # Save each SVG content with its corresponding name
+            for svg_content, name in zip(final_svg_content_list, images_files):
+                base_name = os.path.splitext(name)[0] 
+                output_file_path = os.path.join(output_path, f"{base_name}.svg")  # Construct file path
+                with open(output_file_path, 'w') as svg_file:
+                    svg_file.write(svg_content)  # Write the SVG content to the file
 
-                print(f"SVG files saved in: {output_path}")
+            print(f"SVG files saved in: {output_path}")
         
         print("finish save batch number", batch_count)
         batch_count+=1

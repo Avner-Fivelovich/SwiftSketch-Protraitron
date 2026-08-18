@@ -39,12 +39,19 @@ def main():
     else:
         args.num_strokes = args.num_paths
 
-    # Explicitly enforce CPU execution for the differentiable rasterizer (pydiffvg)
-    # The backward pass of pydiffvg on GPU has a known CUDA kernel bug (cudaErrorIllegalAddress).
+    # Configure pydiffvg device dynamically to take advantage of MPS
     import pydiffvg
     import torch
-    pydiffvg.set_use_gpu(False)
-    pydiffvg.set_device(torch.device("cpu"))
+    if torch.backends.mps.is_available():
+        pydiffvg.set_use_gpu(True)
+        pydiffvg.set_device(torch.device("mps"))
+        print("Enabled pydiffvg on MPS!")
+    elif torch.cuda.is_available():
+        pydiffvg.set_use_gpu(False)
+        pydiffvg.set_device(torch.device("cpu"))
+    else:
+        pydiffvg.set_use_gpu(False)
+        pydiffvg.set_device(torch.device("cpu"))
 
     fixseed(args.seed)
 

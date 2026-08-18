@@ -59,7 +59,8 @@ class LPIPS(torch.nn.Module):
         """
         super(LPIPS, self).__init__()
         # VGG using perceptually-learned weights (LPIPS metric)
-        device= args.device
+        from SwiftSketch.utils import dist_util
+        device = dist_util.dev()
         self.normalize = normalize
         self.pretrained = pretrained
         augemntations = []
