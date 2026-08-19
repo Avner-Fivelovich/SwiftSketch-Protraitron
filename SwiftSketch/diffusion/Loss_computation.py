@@ -64,10 +64,9 @@ class LPIPS(torch.nn.Module):
         self.normalize = normalize
         self.pretrained = pretrained
         augemntations = []
-        augemntations.append(transforms.RandomPerspective(
-            p=1.0, distortion_scale=0.5, interpolation=transforms.InterpolationMode.BILINEAR))
-        augemntations.append(transforms.RandomResizedCrop(
-            224, scale=(0.8, 0.8), ratio=(1.0, 1.0), antialias=False, interpolation=transforms.InterpolationMode.BILINEAR))
+        augemntations.append(transforms.RandomCrop(size=(int(224*0.8), int(224*0.8))))
+        augemntations.append(transforms.Resize((224, 224), antialias=False))
+        augemntations.append(transforms.RandomHorizontalFlip(p=0.5))
         self.augment_trans = transforms.Compose(augemntations)
         self.feature_extractor = LPIPS._FeatureExtractor(
             pretrained, pre_relu).to(device)
