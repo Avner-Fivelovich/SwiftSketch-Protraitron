@@ -155,9 +155,8 @@ def parse_arguments():
                 print(f"[DEVICE OPTIMIZATION] Device capability {major}.{minor} < 8.0. TF32 not supported/enabled.")
         elif torch.backends.mps.is_available():
             args.device = torch.device("mps")
-            # pydiffvg has no native Metal/MPS rendering kernels, so run diffvg on CPU
-            pydiffvg.set_use_gpu(False)
-            pydiffvg.set_device(torch.device("cpu"))
+            pydiffvg.set_use_gpu(True)
+            pydiffvg.set_device(torch.device("mps"))
             print("[DEVICE LOG] Using Apple Silicon MPS (Metal Performance Shaders)")
     else:
         args.device = torch.device("cpu")
