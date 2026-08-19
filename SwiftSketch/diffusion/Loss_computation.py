@@ -65,9 +65,9 @@ class LPIPS(torch.nn.Module):
         self.pretrained = pretrained
         augemntations = []
         augemntations.append(transforms.RandomPerspective(
-            fill=1, p=1.0, distortion_scale=0.5))
+            p=1.0, distortion_scale=0.5, interpolation=transforms.InterpolationMode.BILINEAR))
         augemntations.append(transforms.RandomResizedCrop(
-            224, scale=(0.8, 0.8), ratio=(1.0, 1.0), antialias=False))
+            224, scale=(0.8, 0.8), ratio=(1.0, 1.0), antialias=False, interpolation=transforms.InterpolationMode.BILINEAR))
         self.augment_trans = transforms.Compose(augemntations)
         self.feature_extractor = LPIPS._FeatureExtractor(
             pretrained, pre_relu).to(device)
@@ -83,7 +83,7 @@ class LPIPS(torch.nn.Module):
 
         augmented_sketches, augmented_images = [pred], [target]
         if mode == "train":  
-            for _ in range(4):
+            for _ in range(1):
                 augmented = self.augment_trans(torch.cat([pred, target], dim=0))
                 augmented_sketches.append(augmented[:batch_size])
                 augmented_images.append(augmented[batch_size:])
