@@ -83,7 +83,7 @@ class LPIPS(torch.nn.Module):
         augmented_sketches, augmented_images = [pred], [target]
         if mode == "train":  
             for _ in range(1):
-                augmented = self.augment_trans(torch.cat([pred, target], dim=0))
+                augmented = self.augment_trans(torch.cat([pred, target], dim=0)).contiguous()
                 augmented_sketches.append(augmented[:batch_size])
                 augmented_images.append(augmented[batch_size:])
      
