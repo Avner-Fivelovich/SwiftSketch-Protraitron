@@ -14,10 +14,15 @@ download_dir.mkdir(parents=True, exist_ok=True)
 
 num_images = 15000
 
-print(f"Streaming dataset from Hugging Face... We will download {num_images} images.")
-# Removed memory-intensive shuffle(buffer_size=10000) to prevent macOS from SIGKILLing the process (OOM).
-# Taking the first 15000 images is perfectly diverse for FFHQ.
-dataset = load_dataset("marcosv/ffhq-dataset", split="train", streaming=True).take(num_images)
+# Count how many files we already have so we don't even download them from HuggingFace!
+existing_files = len(list(download_dir.glob("ffhq_batch_*.npz")))
+images_to_fetch = max(0, num_images - existing_files)
+
+print(f"Found {existing_files} existing images. Instructing Hugging Face to skip them...")
+print("Waiting for Hugging Face to seek through the dataset metadata... (This usually takes 1-2 minutes of silence!)")
+
+# Use .skip() to completely bypass the network transfer for images we already have
+dataset = load_dataset("marcosv/ffhq-dataset", split="train", streaming=True).skip(existing_files).take(images_to_fetch)
 
 def save_compressed_npz(file_path, image):
     # Resize slightly if needed to match SwiftSketch standard, though 512x512 is standard
@@ -38,8 +43,13 @@ saved_count = 0
 start_time = time.time()
 
 for idx, item in enumerate(dataset):
+    if saved_count == 0:
+        print("\n🚀 Dataset seek complete! Starting downloads now...")
+        
     try:
-        output_path = download_dir / f"ffhq_batch_{idx}.npz"
+        # Offset the index by the ones we skipped
+        actual_idx = existing_files + idx
+        output_path = download_dir / f"ffhq_batch_{actual_idx}.npz"
         
         # Skip instantly if we already downloaded this image!
         if output_path.exists():
@@ -49,9 +59,10 @@ for idx, item in enumerate(dataset):
         save_compressed_npz(output_path, img)
         
         saved_count += 1
-        if saved_count % 100 == 0:
+        # Print the very first one, then every 10th image so we see constant progress
+        if saved_count == 1 or saved_count % 10 == 0:
             elapsed = time.time() - start_time
-            print(f"[{saved_count}/{num_images}] Saved .npz to: {output_path} (Elapsed: {elapsed:.1f}s)")
+            print(f"[{saved_count}/{images_to_fetch}] Saved .npz to: {output_path} (Elapsed: {elapsed:.1f}s)")
             
     except Exception as e:
         print(f"Failed to save image at index {idx}: {e}")
