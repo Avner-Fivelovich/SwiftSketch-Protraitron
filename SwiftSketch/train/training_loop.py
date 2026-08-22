@@ -110,7 +110,10 @@ class TrainLoop:
             state_dict = dist_util.load_state_dict(
                 opt_checkpoint, map_location=dist_util.dev()
             )
-            self.opt.load_state_dict(state_dict)
+            try:
+                self.opt.load_state_dict(state_dict)
+            except ValueError as e:
+                logger.log(f"Skipping optimizer state load due to mismatch (expected when transitioning to FP16): {e}")
 
 
     
