@@ -165,8 +165,7 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        # not used in the final model
-        x = x + self.pe[:x.shape[0], :]
+        x = x + self.pe[:x.shape[0], :].to(x.dtype)
         return self.dropout(x)
 
 
@@ -184,7 +183,9 @@ class TimestepEmbedder(nn.Module):
         )
 
     def forward(self, timesteps):
-        return self.time_embed(self.sequence_pos_encoder.pe[timesteps]).permute(1, 0, 2)
+        pe = self.sequence_pos_encoder.pe[timesteps]
+        pe = pe.to(self.time_embed[0].weight.dtype)
+        return self.time_embed(pe).permute(1, 0, 2)
 
 
 class InputProcess(nn.Module):
