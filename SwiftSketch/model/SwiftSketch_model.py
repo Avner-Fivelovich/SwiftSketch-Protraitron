@@ -99,6 +99,11 @@ class SwiftSketch(nn.Module):
         x: [batch_size, nstrokes, ncpoints, nfeats], denoted x_t in the paper
         timesteps: [batch_size] (int)
         """
+        dtype = next(self.input_process.parameters()).dtype
+        x = x.to(dtype)
+        if image_features is not None:
+            image_features = image_features.to(dtype)
+            
         x = self.input_process(x) #linear layer + reshape  [nstrokes, bs, d]
 
         emb = self.embed_timestep(timesteps)  # [1,bs, d]
@@ -141,7 +146,7 @@ class SwiftSketch(nn.Module):
       
 
         output = self.output_process(output)  # [bs, ncpoints, nfeats, nstrokes]
-        return output
+        return output.float()
 
 
 
