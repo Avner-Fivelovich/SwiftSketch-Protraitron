@@ -100,7 +100,7 @@ def main():
                                         args.canvas_width, args.canvas_height, dist_util.dev(), args.scaling_factor, 
                                         args.cat_data_size, args.sort_by, args.use_data_cache, args.cache_path_dir, args.data_name)
         use_pin_memory = torch.cuda.is_available()
-        data = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True, pin_memory=use_pin_memory, num_workers=8, prefetch_factor=2)
+        data = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True, pin_memory=use_pin_memory, num_workers=0)
         logger.info(f"Successfully loaded dataset with {len(train_dataset)} examples")
     except Exception as e:
         logger.error(f"Failed to load dataset: {e}")

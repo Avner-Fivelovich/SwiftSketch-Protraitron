@@ -33,7 +33,7 @@ class TrainLoop:
         self.log_interval = args.log_interval
         self.save_interval = args.save_interval
         self.resume_checkpoint = args.resume_checkpoint
-        self.use_fp16 = False  
+        self.use_fp16 = True  
         self.fp16_scale_growth = 1e-3  
         self.weight_decay = args.weight_decay
         self.lr_anneal_steps = args.lr_anneal_steps
@@ -173,6 +173,10 @@ class TrainLoop:
             self.mp_trainer.optimize(self.opt)
             self._anneal_lr()
             self.log_step()
+            
+            if torch.backends.mps.is_available() and (step + resume_step) % 50 == 0:
+                torch.mps.empty_cache()
+                
         except Exception as e:
             tb = traceback.format_exc()
             self.telemetry_logger.error(
