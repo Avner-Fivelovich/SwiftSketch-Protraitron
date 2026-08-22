@@ -19,20 +19,20 @@ def convert_module_to_f16(l):
     """
     Convert primitive modules to float16.
     """
-    if isinstance(l, (nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.Linear)):
-        l.weight.data = l.weight.data.half()
-        if l.bias is not None:
-            l.bias.data = l.bias.data.half()
+    for p in l.parameters(recurse=False):
+        p.data = p.data.half()
+    for b in l.buffers(recurse=False):
+        b.data = b.data.half()
 
 
 def convert_module_to_f32(l):
     """
     Convert primitive modules to float32, undoing convert_module_to_f16().
     """
-    if isinstance(l, (nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.Linear)):
-        l.weight.data = l.weight.data.float()
-        if l.bias is not None:
-            l.bias.data = l.bias.data.float()
+    for p in l.parameters(recurse=False):
+        p.data = p.data.float()
+    for b in l.buffers(recurse=False):
+        b.data = b.data.float()
 
 
 def make_master_params(param_groups_and_shapes):
