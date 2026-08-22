@@ -19,20 +19,24 @@ def convert_module_to_f16(l):
     """
     Convert primitive modules to float16.
     """
-    for p in l.parameters(recurse=False):
-        p.data = p.data.half()
-    for b in l.buffers(recurse=False):
-        b.data = b.data.half()
+    for p in l._parameters.values():
+        if p is not None:
+            p.data = p.data.half()
+    for b in l._buffers.values():
+        if b is not None:
+            b.data = b.data.half()
 
 
 def convert_module_to_f32(l):
     """
     Convert primitive modules to float32, undoing convert_module_to_f16().
     """
-    for p in l.parameters(recurse=False):
-        p.data = p.data.float()
-    for b in l.buffers(recurse=False):
-        b.data = b.data.float()
+    for p in l._parameters.values():
+        if p is not None:
+            p.data = p.data.float()
+    for b in l._buffers.values():
+        if b is not None:
+            b.data = b.data.float()
 
 
 def make_master_params(param_groups_and_shapes):
