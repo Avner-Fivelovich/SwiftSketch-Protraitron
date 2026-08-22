@@ -33,7 +33,7 @@ class TrainLoop:
         self.log_interval = args.log_interval
         self.save_interval = args.save_interval
         self.resume_checkpoint = args.resume_checkpoint
-        self.use_fp16 = False  
+        self.use_fp16 = True  
         self.fp16_scale_growth = 1e-3  
         self.weight_decay = args.weight_decay
         self.lr_anneal_steps = args.lr_anneal_steps

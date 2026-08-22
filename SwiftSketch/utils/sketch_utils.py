@@ -188,10 +188,13 @@ def rander_image_from_points(control_points_batch, canvas_width, canvas_height, 
     bs = control_points_batch.shape[0]
 
 
-    results = list(map(lambda args: render_paths(*args, return_svg_content=return_svg_content), 
-                   zip(control_points_batch, 
-                       [canvas_width] * bs, 
-                       [canvas_height] * bs)))
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=min(16, bs)) as executor:
+        results = list(executor.map(lambda args: render_paths(*args, return_svg_content=return_svg_content), 
+                       zip(control_points_batch, 
+                           [canvas_width] * bs, 
+                           [canvas_height] * bs)))
 
     # Separate the results into two lists: images and svg_content_list
     images, svg_content_list = zip(*results)
