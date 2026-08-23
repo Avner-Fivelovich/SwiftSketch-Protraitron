@@ -174,8 +174,10 @@ class TrainLoop:
             self._anneal_lr()
             self.log_step()
             
+            import gc
             if torch.backends.mps.is_available() and (step + resume_step) % 50 == 0:
                 torch.mps.empty_cache()
+                gc.collect()
                 
         except Exception as e:
             tb = traceback.format_exc()

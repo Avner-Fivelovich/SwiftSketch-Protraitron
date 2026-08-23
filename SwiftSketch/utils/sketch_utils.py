@@ -181,20 +181,23 @@ def render_paths(control_points, canvas_width, canvas_height, save_svg=False, re
 
 
 
+_global_executor = None
+
 def rander_image_from_points(control_points_batch, canvas_width, canvas_height, return_svg_content=False):
     #control_points_batch shape (bs, num_paths, 4,2 )
     # Render the images from the control points in parallel using map
     device = control_points_batch.device
     bs = control_points_batch.shape[0]
 
-
     from concurrent.futures import ThreadPoolExecutor
+    global _global_executor
+    if _global_executor is None:
+        _global_executor = ThreadPoolExecutor(max_workers=16)
 
-    with ThreadPoolExecutor(max_workers=min(16, bs)) as executor:
-        results = list(executor.map(lambda args: render_paths(*args, return_svg_content=return_svg_content), 
-                       zip(control_points_batch, 
-                           [canvas_width] * bs, 
-                           [canvas_height] * bs)))
+    results = list(_global_executor.map(lambda args: render_paths(*args, return_svg_content=return_svg_content), 
+                   zip(control_points_batch, 
+                       [canvas_width] * bs, 
+                       [canvas_height] * bs)))
 
     # Separate the results into two lists: images and svg_content_list
     images, svg_content_list = zip(*results)
