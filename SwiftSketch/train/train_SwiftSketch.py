@@ -35,13 +35,13 @@ def configure_args_for_dataset(args):
     return args
 
 def setup_hardware():
-    if torch.backends.mps.is_available():
-        pydiffvg.set_use_gpu(False)
-        pydiffvg.set_device(torch.device("cpu"))
-        print("Enabled pydiffvg on CPU (Bypassing MPS memory leak)!")
-    elif torch.cuda.is_available():
-        pydiffvg.set_use_gpu(False)
-        pydiffvg.set_device(torch.device("cpu"))
+    if torch.cuda.is_available():
+        pydiffvg.set_use_gpu(True)
+        pydiffvg.set_device(torch.device("cuda"))
+    elif torch.backends.mps.is_available():
+        pydiffvg.set_use_gpu(True)
+        pydiffvg.set_device(torch.device("mps"))
+        print("Enabled pydiffvg on native Apple Silicon (MPS)!")
     else:
         pydiffvg.set_use_gpu(False)
         pydiffvg.set_device(torch.device("cpu"))
