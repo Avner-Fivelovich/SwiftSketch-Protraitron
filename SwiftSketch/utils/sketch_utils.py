@@ -194,11 +194,11 @@ def rander_image_from_points(control_points_batch, canvas_width, canvas_height, 
     if _global_executor is None:
         _global_executor = ThreadPoolExecutor(max_workers=16)
 
-    # The C++ backend bug has been resolved; we no longer need to move to CPU!
-    control_points_batch_mps = control_points_batch
+    # Force control points to CPU for extremely fast C++ thread-based CPU rendering
+    control_points_batch_cpu = control_points_batch.cpu()
 
     results = list(_global_executor.map(lambda args: render_paths(*args, return_svg_content=return_svg_content), 
-                   zip(control_points_batch_mps, 
+                   zip(control_points_batch_cpu, 
                        [canvas_width] * bs, 
                        [canvas_height] * bs)))
 

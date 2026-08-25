@@ -39,9 +39,10 @@ def setup_hardware():
         pydiffvg.set_use_gpu(True)
         pydiffvg.set_device(torch.device("cuda"))
     elif torch.backends.mps.is_available():
-        pydiffvg.set_use_gpu(True)
-        pydiffvg.set_device(torch.device("mps"))
-        print("Enabled pydiffvg on native Apple Silicon (MPS)!")
+        # Fallback to extremely fast CPU rendering for Apple Silicon
+        pydiffvg.set_use_gpu(False)
+        pydiffvg.set_device(torch.device("cpu"))
+        print("Enabled pydiffvg on blazing-fast CPU backend for Apple Silicon!")
     else:
         pydiffvg.set_use_gpu(False)
         pydiffvg.set_device(torch.device("cpu"))
