@@ -22,3 +22,12 @@ archive/
 wandb/
 *.log
 slurm/*.log
+
+# Ignore heavy model weights and compiled binaries
+*.pt
+*.so
+*.dylib
+*.o
+*.py[cod]
+models/*.pt
+

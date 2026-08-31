@@ -43,7 +43,7 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)/SwiftSketch
 python -m train.train_SwiftSketch \
     --num_strokes 96 \
     --train_data_dir "$ORIGINAL_DATA" "$FFHQ_DATA" \
-    --cat_data_size 5000 \
+    --cat_data_size 25000 \
     --save_dir "outputs/train_96s_custom" \
     --use_wandb 1 \
     --wandb_project_name "SwiftSketch-Protraitron" \

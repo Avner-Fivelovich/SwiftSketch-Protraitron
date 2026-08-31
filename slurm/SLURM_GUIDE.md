@@ -1,59 +1,81 @@
 # 🚀 Running SwiftSketch / ControlSketch on the TAU CS Slurm Cluster
 
-This guide explains how to set up the environment, compile dependencies with GPU support, sync the dataset, and execute optimization runs on the Slurm cluster.
+This guide provides a comprehensive walkthrough for configuring the environment, compiling GPU-accelerated rasterization dependencies, syncing datasets, generating multi-scale vector sketch datasets, training SwiftSketch models, and monitoring cluster jobs on the Tel Aviv University CS Slurm cluster.
 
-Running on Slurm offers two major advantages:
-1. **GPU-Accelerated Differentiable Rasterization**: Unlike macOS, the Slurm cluster's NVIDIA GPUs will run the differentiable rasterization (`pydiffvg`) on CUDA instead of the CPU. This removes the main CPU rasterization bottleneck.
-2. **Fast Stable Diffusion Backpass**: SDS loss calculation will run on powerful cluster GPUs instead of Apple Silicon.
+---
+
+## 📑 Table of Contents
+1. [Overview & Advantages](#-overview--advantages)
+2. [Prerequisites](#-prerequisites)
+3. [Step 1: Clone Repository on NetApp Storage](#-step-1-clone-repository-on-netapp-storage)
+4. [Step 2: Set Up Conda Environment](#-step-2-set-up-conda-environment)
+5. [Step 3: Install Dependencies & Compile `diffvg` with CUDA](#-step-3-install-dependencies--compile-diffvg-with-cuda)
+6. [Step 4: Sync Datasets to the Cluster](#-step-4-sync-datasets-to-the-cluster)
+7. [Step 5: Step Comparison Optimization Experiments](#-step-5-step-comparison-optimization-experiments)
+8. [Step 6: High-Throughput Batch Dataset Generation](#-step-6-high-throughput-batch-dataset-generation)
+9. [Step 7: Progress Auditing & Ground-Truth Verification](#-step-7-progress-auditing--ground-truth-verification)
+10. [Step 8: Model Training on Custom Datasets](#-step-8-model-training-on-custom-datasets)
+11. [Step 9: Slurm Web Dashboard & Management Tool](#-step-9-slurm-web-dashboard--management-tool)
+12. [Cluster Hardware, QOS Limits & Troubleshooting](#-cluster-hardware-qos-limits--troubleshooting)
+
+---
+
+## 🌟 Overview & Advantages
+
+Executing optimization and training on the TAU Slurm cluster provides key acceleration advantages:
+1. **GPU-Accelerated Differentiable Rasterization**: Unlike local macOS execution where rasterization defaults to CPU, the cluster's NVIDIA GPUs compile and run `pydiffvg` on CUDA, removing the primary compute bottleneck.
+2. **Fast Stable Diffusion Backpropagation**: Score Distillation Sampling (SDS) loss runs across cluster GPUs (e.g., RTX 2080 Ti, Titan Xp, RTX 3090/A5000) with full mixed-precision support.
+3. **Massive Parallel Dataset Processing**: Hundreds of batches can be queued simultaneously to process tens of thousands of image-to-vector sketches across multiple stroke budgets (48, 64, 96, 128 strokes).
 
 ---
 
 ## 📋 Prerequisites
-1. Ensure your **University VPN** is turned on.
-2. Ensure you have SSH key access configured on the cluster.
+1. **University VPN**: Ensure your TAU GlobalProtect VPN is active.
+2. **SSH Access**: Ensure you have SSH key access configured for `slurm-client.cs.tau.ac.il`.
 
 ---
 
-## 🛠️ Step 1: Clone the Repo and Checkout the Branch on NetApp
+## 🛠️ Step 1: Clone Repository on NetApp Storage
 
 Connect to the Slurm login node:
 ```bash
-ssh avnerf@slurm-client.cs.tau.ac.il
+ssh $USER@slurm-client.cs.tau.ac.il
 ```
 
 > [!IMPORTANT]
 > **Run Git Commands ONLY on the Login Node (`slurm-client.cs.tau.ac.il`)**:
-> Cluster compute nodes (like `c-008`, `c-009`, etc.) run a minimal execution environment and do not have `git` installed (`git: Command not found`). 
-> Always execute `git clone`, `git pull`, and other repo/branch management commands on the login node **before** starting interactive jobs or submitting batch scripts.
+> Cluster compute nodes (e.g., `c-008`, `s-002`, `n-301`) run a minimal compute image without `git` installed (`git: command not found`). 
+> Always execute `git clone`, `git pull`, and branch management on the login node **before** dispatching jobs.
 
-Navigate to your personal NetApp directory, clone the repository, and check out the main branch:
+Navigate to your high-capacity NetApp directory and clone the repository:
 ```bash
 # Define your personal NetApp path
 export MY_NETAPP_PATH="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER"
-cd $MY_NETAPP_PATH
+cd "$MY_NETAPP_PATH"
 
-# Clone the repository
+# Clone repository
 git clone https://github.com/Avner-Fivelovich/SwiftSketch-Protraitron.git SwiftSketch-Protraitron
 cd SwiftSketch-Protraitron
 
-# Fetch all branches and check out main (or your development branch)
+# Fetch all branches and check out target branch
 git fetch origin
 git checkout main
 ```
 
 ---
 
-## 🐍 Step 2: Set up the Conda Environment
+## 🐍 Step 2: Set Up Conda Environment
 
-Create a new Conda environment (`swiftsketch_env`) using Python 3.9:
+Because your home folder has a strict quota (`Disk quota exceeded`), configure Conda to store all packages on the NetApp volume:
+
 ```bash
-# Refresh terminal to ensure conda is available
+# Ensure Conda is available in the shell
 source ~/.bashrc
 
-# Configure package directory on NetApp to avoid home quota limit
+# Redirect Conda package cache to NetApp storage
 conda config --add pkgs_dirs /vol/joberant_nobck/data/NLP_368307701_2526a/$USER/conda_pkgs
 
-# Create the environment
+# Create Conda environment with Python 3.9
 conda create -y -n swiftsketch_env python=3.9.19
 
 # Activate the environment
@@ -62,36 +84,43 @@ conda activate swiftsketch_env
 
 ---
 
-## 📦 Step 3: Install Dependencies
+## 📦 Step 3: Install Dependencies & Compile `diffvg` with CUDA
 
-To bypass disk quota limits (`Disk quota exceeded` errors) on the home folder, we redirect all caches and temp builds to NetApp. Run this in your terminal:
-
+### 1. Redirect Temporary and Cache Directories
 ```bash
-# 1. Create and redirect cache/temp folders to NetApp
-mkdir -p /vol/joberant_nobck/data/NLP_368307701_2526a/$USER/{pip_cache,tmp}
+mkdir -p /vol/joberant_nobck/data/NLP_368307701_2526a/$USER/{pip_cache,tmp,huggingface_cache,clip_cache}
 export PIP_CACHE_DIR="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/pip_cache"
 export TMPDIR="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/tmp"
+export HF_HOME="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/huggingface_cache"
+export CLIP_CACHE_DIR="/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/clip_cache"
+```
 
-# 2. Force install PyTorch with CUDA 12.1 compatibility
-# Note: Pinned to 2.3.1 to support sm_61 (Titan XP) architectures on the student partition.
+### 2. Install PyTorch with CUDA 12.1 Support
+> [!NOTE]
+> PyTorch is pinned to `2.3.1` to maintain binary compatibility with `sm_61` (Titan Xp / GTX Titan X) and `sm_75` (RTX 2080 Ti) GPU architectures on student partitions.
+
+```bash
 pip install --force-reinstall torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
+```
 
-# 3. Install requirements using the relaxed requirements file (flash-attn is skipped)
+### 3. Install Python Dependencies & OpenAI CLIP
+```bash
+# Install core dependencies (excluding flash-attn to maintain compatibility across all node architectures)
 pip install -r slurm/requirements_relaxed.txt
 
-# 4. Install OpenAI CLIP
+# Install OpenAI CLIP from source
 pip install git+https://github.com/openai/CLIP.git
 ```
 
-### ⚡ Compile `diffvg` with CUDA support
-To run the differentiable rasterizer on the GPU, you must compile `diffvg` on the cluster. Since CUDA is available, `setup.py` will automatically compile with CUDA support. Modern CMake versions require a policy patch to build successfully:
+### 4. Compile `diffvg` with GPU / CUDA Support
+`diffvg` must be compiled against CUDA on the cluster. A policy patch is applied to `setup.py` to ensure compatibility with modern CMake versions:
 
 ```bash
-# 5. Clone diffvg
+# Clone diffvg repository
 git clone --recursive https://github.com/BachiLi/diffvg.git
 cd diffvg
 
-# 6. Apply policy patch to setup.py to compile successfully
+# Apply CMake policy and C++14 standard patch
 python -c "
 with open('setup.py', 'r') as f:
     code = f.read()
@@ -100,88 +129,135 @@ with open('setup.py', 'w') as f:
     f.write(code)
 "
 
-# 7. Run the installer (compilation takes 1-2 minutes)
+# Build and install diffvg
 python setup.py install
 
-# 8. Go back to the main directory and clean up
+# Return to repository root and remove temporary source
 cd ..
 rm -rf diffvg/
 ```
 
----
-
-## 💾 Step 4: Sync the Datasets
-Since the datasets under `ControlSketch/data/` (such as `train/` and `test/` folders, or `.tar.gz` files) are local and not committed to git, you need to copy them from your local Mac to NetApp.
-
-Run the following command **from your local Mac terminal** (ensure VPN is on):
+### 5. Verify Installation
 ```bash
-rsync -avz --progress /Users/avnerf/Documents/GitHub/SwiftSketch-Protraitron/ControlSketch/data/ avnerf@slurm-client.cs.tau.ac.il:/vol/joberant_nobck/data/NLP_368307701_2526a/avnerf/SwiftSketch-Protraitron/ControlSketch/data/
+python -c "import torch, pydiffvg; print('PyTorch CUDA:', torch.cuda.is_available(), '| Device Name:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A')"
 ```
 
 ---
 
-## 🏃‍♂️ Step 5: Submit Jobs to Slurm
+## 💾 Step 4: Sync Datasets to the Cluster
 
-We have prepared two Slurm batch scripts for running the step comparison experiments:
-* `run_step_comparison.slurm` (runs 16-stroke optimization)
-* `run_step_comparison_64.slurm` (runs 64-stroke optimization)
+Datasets under `ControlSketch/data/` or `data/ffhq_raw_npz/` should be synced from your local workstation to the cluster NetApp directory.
 
-> [!IMPORTANT]
-> **Create the log directories before submitting**:
-> Slurm requires the destination paths for stdout/stderr logs to exist prior to job launch. Create the directories from the repository root:
-> ```bash
-> mkdir -p outputs/logs
-> ```
+Run `rsync` from your **local machine terminal** (with TAU VPN active):
 
-To submit either job, run:
 ```bash
-# Submit the 16-stroke comparison job
+# Sync ControlSketch training data
+rsync -avz --progress /Users/avnerf/Documents/GitHub/SwiftSketch-Protraitron/ControlSketch/data/ \
+  $USER@slurm-client.cs.tau.ac.il:/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/SwiftSketch-Protraitron/ControlSketch/data/
+
+# Sync raw FFHQ dataset (if running portrait generation)
+rsync -avz --progress /Users/avnerf/Documents/GitHub/SwiftSketch-Protraitron/data/ffhq_raw_npz/ \
+  $USER@slurm-client.cs.tau.ac.il:/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/SwiftSketch-Protraitron/data/ffhq_raw_npz/
+```
+
+---
+
+## 🏃‍♂️ Step 5: Step Comparison Optimization Experiments
+
+Run comparative step ablation studies (16 strokes vs 64 strokes) using preconfigured Slurm batch scripts:
+
+```bash
+# Ensure log directories exist
+mkdir -p outputs/logs
+
+# Submit 16-stroke comparison run
 sbatch slurm/run_step_comparison.slurm
 
-# Submit the 64-stroke comparison job
+# Submit 64-stroke comparison run
 sbatch slurm/run_step_comparison_64.slurm
 ```
 
-### 📊 Useful Slurm Commands
-* Check your active and pending jobs:
+### Useful Slurm Management Commands
+* **Inspect active and queued jobs**:
   ```bash
   squeue --me
+  squeue --me --sort=i  # Sorted by job ID
   ```
-* Stream/view the live output logs:
+* **Follow live execution logs**:
   ```bash
   tail -f outputs/logs/ss_comp_16_<JOB_ID>.out
   ```
-* Cancel a running job:
+* **Cancel running or pending jobs**:
   ```bash
   scancel <JOB_ID>
+  scancel -u $USER      # Cancel all jobs under your user account
   ```
 
 ---
 
-## 🎨 Step 6: Dataset Generation in Batches (Multi-Job Scripts)
+## 🎨 Step 6: High-Throughput Batch Dataset Generation
 
-To prepare the dataset for model training, you must process the raw `.npz` files through ControlSketch to generate the customized stroke vector keys (e.g., `svg_48s`, `svg_64s`, `svg_96s`, or `svg_128s`). Rather than a single job array, we use a Python script generator and a bash submission script to queue jobs sequentially by stroke count.
+To train SwiftSketch models with varying levels of abstraction, generate multi-stroke vector datasets (`svg_48s`, `svg_64s`, `svg_96s`, `svg_128s`) along with CLIP middle-layer visual feature representations.
 
-### 🏃‍♂️ Running the Jobs
-1. **Generate the Slurm scripts**:
-   This script scans the input folder, divides the images into batches of 10, and writes statically configured `.slurm` scripts for `48`, `64`, `96`, and `128` strokes under `slurm/jobs/`:
-   ```bash
-   python slurm/generate_generation_jobs.py
-   ```
+```mermaid
+flowchart LR
+    A["Raw .npz Images"] --> B["generate_generation_jobs.py"]
+    B --> C["slurm/jobs/strokes_*/"]
+    C --> D["submit_all_generation_jobs.sh"]
+    D --> E["Slurm Worker Nodes"]
+    E --> F["data/controlsketch_*/train/*.npz"]
+```
 
-2. **Submit the jobs to the queue**:
-   This bash script submits the generated scripts sequentially (all 48-stroke jobs first, followed by 64-stroke, 96-stroke, and finally 128-stroke jobs) with a short 0.1-second pause to be polite to the scheduler:
-   ```bash
-   ./slurm/submit_all_generation_jobs.sh
-   ```
+### 1. Generate Batch Slurm Scripts
+`slurm/generate_generation_jobs.py` automatically scans input datasets, partitions images into balanced subsets, and writes parameterized `.slurm` job scripts:
 
-### 📂 Output Management
-* **Generated Dataset (Source of Truth)**:
+```bash
+# Generate jobs for default dataset (all 4 stroke budgets: 48, 64, 96, 128)
+python slurm/generate_generation_jobs.py
+
+# Generate jobs for a specific stroke count and custom input folder
+python slurm/generate_generation_jobs.py \
+  --input_dir data/ffhq_raw_npz \
+  --output_base_dir data/ffhq \
+  --strokes 96 \
+  --images_per_job 50 \
+  --max_files 15000 \
+  --job_prefix ffhq
+```
+
+#### Supported Generator Arguments:
+| Argument | Default | Description |
+|---|---|---|
+| `--input_dir` | `ControlSketch/data/train` | Directory containing source `.npz` files |
+| `--output_base_dir` | `data` | Base output directory for generated `.npz` files |
+| `--strokes` | `[48, 64, 96, 128]` | List of stroke count targets to generate |
+| `--images_per_job` | `100` | Number of images assigned per Slurm job script |
+| `--max_files` | `None` | Max files to process, using stratified category sampling |
+| `--allowed_categories` | `None` | Restrict generation to specific category subdirectories |
+| `--job_prefix` | `orig` | Prefix string for Slurm job names (e.g., `orig`, `ffhq`) |
+| `--specific_batches` | `None` | Generate only specific batch indices (e.g., `21 47`) |
+
+### 2. Submit Generation Jobs to the Cluster Queue
+`submit_all_generation_jobs.sh` queues the batch files sequentially by stroke group, adding a polite 0.1s throttle between `sbatch` invocations:
+
+```bash
+# Make script executable
+chmod +x slurm/submit_all_generation_jobs.sh
+
+# Submit all stroke groups (48, 64, 96, 128)
+./slurm/submit_all_generation_jobs.sh
+
+# Or target only 96 strokes
+./slurm/submit_all_generation_jobs.sh 96
+```
+
+### 3. Output Directory Layout
+* **Generated Datasets**:
   * `data/controlsketch_48/train/`
   * `data/controlsketch_64/train/`
   * `data/controlsketch_96/train/`
   * `data/controlsketch_128/train/`
-* **Log Files (Stdout / Stderr)**:
+* **Execution Logs**:
   * `outputs/logs/strokes_48/`
   * `outputs/logs/strokes_64/`
   * `outputs/logs/strokes_96/`
@@ -189,25 +265,104 @@ To prepare the dataset for model training, you must process the raw `.npz` files
 
 ---
 
-## ⚠️ Queue Policies, Concurrency, and QOS Limits
+## 🔍 Step 7: Progress Auditing & Ground-Truth Verification
 
-### 1. Slurm Node Classifications
-The CS Slurm GPU cluster consists of different partitions and node resources:
-* **SLURM-STUDENTS-NODES (e.g. `s-002` to `s-006`)**:
-  * Equipped with **NVIDIA TITAN Xp** (12 GB VRAM) and **GeForce RTX 2080 Ti** (11 GB VRAM).
-  * Ideal for batch dataset generation runs.
-* **SLURM-CLIENT-NODES (e.g. `c-001` to `c-010`, `n-007`)**:
-  * Equipped with **NVIDIA TITAN Xp** and **GeForce GTX TITAN X** (12 GB VRAM).
-* **SLURM-RESEARCH-NODES (e.g. `n-301` to `n-307`, `n-501` to `n-503`, `n-601`, `n-602`, `n-801` to `n-805`, `t-100`, `n-102`, `n-h200`, `n-b200`, `n-b201`)**:
-  * Equipped with high-performance cards: **GeForce RTX 3090** (24 GB), **RTX A5000** (24 GB), **RTX A6000** (48 GB), **NVIDIA L40S** (46 GB), **H100 80GB**, **H200** (141 GB), and **B200** (180 GB).
+To verify generated `.npz` files (ensuring non-corrupted SVG keys and tracking cluster throughput), run `check_progress.py`:
+
+```bash
+python slurm/check_progress.py
+```
+
+### Progress Auditor Features:
+* **Ground-Truth Physical Scan**: Directly verifies that output `.npz` files exist and contain valid `svg_96s` dictionary entries.
+* **Cluster Throughput Metrics**: Calculates average seconds per image, images processed per GPU/hour, and projected daily cluster yield.
+* **Missing Block Detection**: Identifies incomplete or unstarted batches, printing collapsed batch ranges (e.g., `Blocks 12, 14-18`) for easy re-submission with `--specific_batches`.
+
+---
+
+## 🏋️‍♂️ Step 8: Model Training on Custom Datasets
+
+Once multi-stroke datasets are prepared, dispatch full SwiftSketch training jobs using `run_train_custom_96s.slurm`:
+
+```bash
+# Submit 96-stroke custom training job
+sbatch slurm/run_train_custom_96s.slurm
+```
+
+### Training Configuration Highlights:
+* **Multi-Directory Ingestion**: Supports training simultaneously across multiple dataset sources (e.g., original ControlSketch dataset + custom FFHQ dataset):
+  ```bash
+  python -m train.train_SwiftSketch \
+      --num_strokes 96 \
+      --train_data_dir "data/original/controlsketch_96/train" "data/ffhq/controlsketch_96/train" \
+      --cat_data_size 25000 \
+      --save_dir "outputs/train_96s_custom" \
+      --use_wandb 1 \
+      --wandb_project_name "SwiftSketch-Protraitron" \
+      --batch_size 8 \
+      --num_steps 120000 \
+      --save_interval 20000
+  ```
+* **Experiment Tracking**: Automatic logging to Weights & Biases (WandB).
+* **Checkpointing**: Checkpoints saved every 20,000 steps to `outputs/train_96s_custom/`.
+
+---
+
+## 🖥️ Step 9: Slurm Web Dashboard & Management Tool
+
+A local Python web server (`slurm/slurm_server.py`) and single-page dashboard (`slurm/slurm_dashboard.html`) are included for real-time monitoring and visual experiment management.
+
+```mermaid
+flowchart LR
+    Browser["Web Browser: localhost:8081"] <--> Server["slurm_server.py"]
+    Server <--> SSH["SSH / NetApp / Slurm Client"]
+    SSH <--> Cluster["TAU Slurm Cluster"]
+```
+
+### Starting the Dashboard:
+```bash
+# Run locally on port 8081
+python slurm/slurm_server.py
+```
+Open `http://localhost:8081` in your browser to:
+* View live queue states (`squeue`), CPU/GPU memory loads, and active node allocations.
+* Stream stdout/stderr log files with auto-scroll.
+* Generate and trigger custom multi-stroke jobs via a web UI.
+* Trigger background dataset synchronization (`rsync`).
+
+---
+
+## ⚠️ Cluster Hardware, QOS Limits & Troubleshooting
+
+### 1. Node Classifications & Partition Layout
+| Node Partition / Nodes | Hardware Specs | Typical Workload |
+|---|---|---|
+| **SLURM-STUDENTS-NODES**<br>`s-002` to `s-006` | **NVIDIA TITAN Xp** (12 GB)<br>**GeForce RTX 2080 Ti** (11 GB) | Batch dataset generation, feature extraction |
+| **SLURM-CLIENT-NODES**<br>`c-001` to `c-010`, `n-007` | **NVIDIA TITAN Xp** (12 GB)<br>**GeForce GTX TITAN X** (12 GB) | Quick tests, interactive debugging |
+| **SLURM-RESEARCH-NODES**<br>`n-301` to `n-307`, `n-501` to `n-503`, `n-801` to `n-805`, `n-h200`, `n-b200` | **RTX 3090 / A5000** (24 GB)<br>**RTX A6000 / L40S** (46–48 GB)<br>**H100 / H200 / B200** (80–180 GB) | Large-scale SwiftSketch training, high-resolution rendering |
 
 ### 2. QOS Limit Constraints (`QOSMaxGRESPerUser`)
-When submitting a large batch of jobs, you will often notice that many jobs remain in the pending (`PD`) state with the reason:
-```
-(QOSMaxGRESPerUser)
-```
-* **What this means**: The cluster enforces a Quality of Service (QOS) limit capping the maximum number of concurrent GPUs a single user can allocate at once (typically capped at **20–25 active GPUs**).
-* **Behavior**: Any jobs submitted beyond this cap will wait in the queue and automatically run as active slots become available when previous jobs finish.
-* **Best Practice**: You can submit all your batches safely; Slurm will throttle execution and process them at maximum capacity.
+* **Symptom**: Jobs in `squeue` show pending state `PD` with reason `(QOSMaxGRESPerUser)`.
+* **Explanation**: The cluster QOS policy limits individual users to **20–25 concurrent GPUs**.
+* **Action**: No manual intervention is needed. You may safely submit all generated batch scripts at once; Slurm will schedule and dispatch them automatically as GPU slots free up.
 
+### 3. Common Issues & Solutions
 
+#### `Disk quota exceeded`
+* **Cause**: Files or caches are writing to your home directory (`~`) instead of NetApp storage.
+* **Fix**: Ensure `PIP_CACHE_DIR`, `TMPDIR`, `HF_HOME`, `CLIP_CACHE_DIR`, and Conda `pkgs_dirs` are all pointed to `/vol/joberant_nobck/data/NLP_368307701_2526a/$USER/`.
+
+#### `CUDA out of memory` / VRAM Fragmentation
+* **Cause**: PyTorch memory allocator fragmentation during SDS loss backpropagation.
+* **Fix**: Add the expandable segments flag before running Python scripts:
+  ```bash
+  export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+  ```
+
+#### `git: command not found` on Compute Nodes
+* **Cause**: Compute nodes run a lightweight execution environment without git binaries.
+* **Fix**: Run all git commands on the login node (`slurm-client.cs.tau.ac.il`) prior to job submission.
+
+#### `diffvg` Compilation Failure (`CMake Minimum Policy`)
+* **Cause**: Newer CMake releases require explicit policy minimum declarations.
+* **Fix**: Ensure the `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` and `-DCMAKE_CXX_STANDARD=14` flags are injected into `setup.py` as detailed in [Step 3](#-step-3-install-dependencies--compile-diffvg-with-cuda).

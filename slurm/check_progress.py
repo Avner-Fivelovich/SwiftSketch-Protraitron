@@ -44,8 +44,11 @@ def check_progress():
     print("Scanning actual output .npz files for 100% accurate ground truth...")
     
     # 1. Gather expected files (Exact same logic as job generator)
-    orig_inputs = get_file_list("ControlSketch/data/train", max_files=5000, allowed_categories=["woman", "angel", "astronaut", "sculpture", "robot"])
-    ffhq_inputs = get_file_list("data/ffhq_raw_npz")
+    # The original generation: all 15000 images
+    orig_inputs = get_file_list("ControlSketch/data/train", max_files=15000)
+    
+    # The new FFHQ generation: 15000
+    ffhq_inputs = get_file_list("data/ffhq_raw_npz", max_files=15000)
     
     datasets = {
         "orig": {
@@ -62,9 +65,12 @@ def check_progress():
     
     block_counts = defaultdict(lambda: defaultdict(int))
     total_finished = 0
-    images_per_job = 100
+    # New jobs use 50 images per job!
+    images_per_job = 50
     num_strokes = 96
     svg_key = f"svg_{num_strokes}s"
+    
+    dataset_finished_counts = {"orig": 0, "ffhq": 0}
     
     # 2. Check physical files
     for prefix, ds in datasets.items():
@@ -81,6 +87,7 @@ def check_progress():
                         if svg_key in loader:
                             block_counts[prefix][batch_idx] += 1
                             total_finished += 1
+                            dataset_finished_counts[prefix] += 1
                 except:
                     pass
 
@@ -111,6 +118,8 @@ def check_progress():
     print("📊 DATASET GENERATION PROGRESS (NPZ GROUND TRUTH)")
     print("=" * 60)
     print(f"✅ Total Images Finished:  {total_finished}")
+    print(f"   ├─ Original Finished:   {dataset_finished_counts['orig']} / {len(orig_inputs)}")
+    print(f"   └─ FFHQ Finished:       {dataset_finished_counts['ffhq']} / {len(ffhq_inputs)}")
     print(f"⏱️  Average Speed:         {avg_speed:.2f} seconds/image ({(avg_speed/60):.2f} min)")
     print("-" * 60)
     print("⚡ CLUSTER THROUGHPUT (At 24 GPUs)")
